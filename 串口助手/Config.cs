@@ -21,7 +21,8 @@ namespace IniFile
         public TextBox[] TextboxTX = new TextBox[1];
         public TextBox[] TextboxTimer = new TextBox[1];
 
-        bool TextboxTXClickBypass = false;
+        //默认上锁
+        bool TextboxTXClickBypass = true;
 
 
         /// <summary>
@@ -49,9 +50,13 @@ namespace IniFile
         /// <returns></returns>
         public string IniRead(string section, string key, string path)
         {
-            System.Text.StringBuilder temp = new System.Text.StringBuilder(256);
-            GetPrivateProfileString(section, key, "", temp, 256, path);
+            System.Text.StringBuilder temp = new System.Text.StringBuilder(2048);
+            GetPrivateProfileString(section, key, "", temp, 2048, path);
             return temp.ToString();
+        }
+        public void SysCfgFileClear(string section)
+        {
+            IniWrite(section, null, null, gSysCfgInfoPath);
         }
         public void SysCfgFileWrite(string section, string key, string val)
         {
@@ -103,22 +108,20 @@ namespace IniFile
             table1.Size = new Size(161, (20 * TxListNum) + 2);
             table2.Size = new Size(77, (20 * TxListNum) + 2);
             //table1.Height = (20 * TxListNum) + 2;
-            Color color = Color.Transparent;
+            Color[] colorsButton = { Color.Coral, Color.Coral };
+            Color[] colors = { Color.White, Color.LightGray };
             for (int i = 0; i < TxListNum; i++)
             {
-                if ((i & 0x1) == 0x1)
-                    color = Color.LightGray;
-                else
-                    color = Color.White;
                 Button[i] = new Button();
                 Button[i].Margin = new Padding(0, 0, 0, 0);
                 Button[i].Name = "1225yl";
                 Button[i].Dock = DockStyle.Fill;
+                Button[i].BackColor = colorsButton[i & 0x1];
                 Button[i].AutoSize = true;
                 Button[i].TabStop = false;
 
                 TextboxTimer[i] = new TextBox();
-                TextboxTimer[i].BackColor = color;
+                TextboxTimer[i].BackColor = colors[i & 0x1];
                 TextboxTimer[i].Margin = new Padding(0, 0, 0, 0);
                 TextboxTimer[i].Name = "1225";
                 TextboxTimer[i].Dock = DockStyle.Fill;
@@ -128,9 +131,10 @@ namespace IniFile
                 TextboxTimer[i].TabIndex = 200 + i;
 
                 TextboxTX[i] = new TextBox();
-                TextboxTX[i].BackColor = color;
+                TextboxTX[i].BackColor = colors[i & 0x1];
                 TextboxTX[i].Margin = new Padding(0, 0, 0, 0);
                 TextboxTX[i].Name = "1225yl";
+                TextboxTX[i].MaxLength = 4096;
                 TextboxTX[i].Dock = DockStyle.Fill;
                 TextboxTX[i].AutoSize = true;
                 TextboxTX[i].Multiline = true;
@@ -142,11 +146,11 @@ namespace IniFile
                 TextboxTX[i].MouseDoubleClick += new MouseEventHandler(TextboxTX_MouseDoubleClick);
 
                 Checkbox[i] = new CheckBox();
-                Checkbox[i].BackColor = color;
+                Checkbox[i].BackColor = colors[i & 0x1];
                 Checkbox[i].Margin = new Padding(1, 1, 0, 0);
                 Checkbox[i].Dock = DockStyle.Fill;
                 Checkbox[i].TabStop = false;
-                //Checkbox[i].Checked = false;
+                Checkbox[i].Checked = true;
 
                 table1.Controls.Add(Checkbox[i], 0, i);
                 table1.Controls.Add(TextboxTimer[i], 1, i);
@@ -161,11 +165,11 @@ namespace IniFile
                 string[] val = new string[4];
                 for (int i = 0; i < TxListNum; i++)
                 {
-                    val = IniRead("发送区", "TableTx" + (i + 1).ToString(), TxListPath).Split(',');
+                    val = IniRead("发送区", "TableTx" + (i + 1).ToString(), TxListPath).Split('$');
                     Checkbox[i].Checked = Convert.ToBoolean(val[0]);
                     TextboxTimer[i].Text = val[1];
                     TextboxTX[i].Text = val[2].Replace("\\n", "\r\n");
-                    TextboxTX[i].Text = TextboxTX[i].Text.Replace(";", ",");
+                    TextboxTX[i].Text = TextboxTX[i].Text.Replace("\\\\&", "$");
                     Button[i].Text = val[3];
                 }
                 return TxListNum;
@@ -197,9 +201,9 @@ namespace IniFile
             {
                 string txmsg = TextboxTX[i].Text;
                 txmsg = txmsg.Replace("\r\n", "\\n");
-                txmsg = txmsg.Replace(",", ";");
-                string str = Checkbox[i].Checked.ToString() + "," + TextboxTimer[i].Text + "," +
-                    txmsg + "," + Button[i].Text;
+                txmsg = txmsg.Replace("$", "\\\\&");
+                string str = Checkbox[i].Checked.ToString() + "$" + TextboxTimer[i].Text + "$" +
+                    txmsg + "$" + Button[i].Text;
                 IniWrite("发送区", "TableTx" + (i + 1).ToString(), str, TxListPath);
             }
         }

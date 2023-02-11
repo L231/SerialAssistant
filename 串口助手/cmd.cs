@@ -38,20 +38,6 @@ namespace 串口助手
             指令规则清空ToolStripMenuItem.Text = "指令规则已清空";
         }
 
-        private void 接收区解锁ToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            if (接收区解锁ToolStripMenuItem.Text == "接收区解锁")
-            {
-                richTextBox_Rx.ReadOnly = false;
-                Help();
-                接收区解锁ToolStripMenuItem.Text = "接收区上锁";
-            }
-            else
-            {
-                richTextBox_Rx.ReadOnly = true;
-                接收区解锁ToolStripMenuItem.Text = "接收区解锁";
-            }
-        }
 
         private void richTextBox_Rx_KeyDown(object sender, KeyEventArgs e)
         {
@@ -93,7 +79,7 @@ namespace 串口助手
                     case "TO":
                         ASCII与HEX互转(val);
                         break;
-                    case "CALC":
+                    case "CS":
                         CalcCheckSum(val);
                         break;
                     case "C":
@@ -117,14 +103,14 @@ namespace 串口助手
                 "指令   用法举例             输出结果\r\n" +
                 "------------------------------------------------------\r\n" +
                 " HELP  HELP                 打印指令表\r\n" +
-                " GET   GeT,C运算符          打印C运算符表\r\n" +
-                " GET   GeT,ASCII            打印ASCII表\r\n" +
-                " TO    TO,HEX,12            ==>31 32\r\n" +
+                " GET   get,C运算符          打印C运算符表\r\n" +
+                " GET   GET,ASCII            打印ASCII表\r\n" +
+                " TO    to,HEX,12            ==>31 32\r\n" +
                 " TO    TO,ASCII,3132        ==>12\r\n" +
-                " CALC  CALC,CS,A05A         ==>CheckSum = 0x5\r\n" +
+                " CS    CS,A05A              ==>CheckSum = 0x5\r\n" +
                 " C     C,120*xA+25          ==>1225, 0x4C9\r\n" +
-                " MSG   msg,12,H-1-3,L-3-5   H:高字节在前，D1<<8|D2\r\n" +
-                "当串口收到：12 04 C9 04 C9 自动转 ==>12 [1225] [51460]\r\n");
+                " MSG   msg,12,H-1-2,L-3-2   H:高字节在前，D1<<8|D2\r\n" +
+                "当串口收到：12 04 C9 C9 04 自动转 ==>12 [1225] [1225]\r\n");
             richTextBox_Rx.Font = new System.Drawing.Font(richTextBox_Rx.Font, System.Drawing.FontStyle.Bold);
             toolStripButton_RecClear.Enabled = true;
             toolStripButton_RecClear.BackColor = Color.Gold;
@@ -183,7 +169,7 @@ namespace 串口助手
                         byte[] LastByte = rx_buf.Skip(last_tail).Take(len - last_tail).ToArray();
                         msg16to10 += " " + BitConverter.ToString(LastByte).Replace("-", " ");
                     }
-                    richTextBox_Rx.AppendText(System.Environment.NewLine + msg16to10);
+                    richTextBox_Rx.AppendText(msg16to10);
                     return;
                 }
             }
@@ -200,7 +186,8 @@ namespace 串口助手
             //    goto CfgMsg16To10_ERROR;
             try
             {
-                byte[] cmd = StringToByte("HEX", val[1]);
+                DataTypeConversion dataType = new DataTypeConversion();
+                byte[] cmd = dataType.StringToByte("HEX", val[1]);
                 for (int pos = 0; pos < gCfgMsg16To10_List.Count(); pos++)
                 {
                     if (gCfgMsg16To10_List[pos].cmd.Length == cmd.Length && 
@@ -239,9 +226,14 @@ namespace 串口助手
             }
         CfgMsg16To10_ERROR:
             richTextBox_Rx.AppendText(System.Environment.NewLine);
-            richTextBox_Rx.AppendText("错误，参考：cfg,12,h-2-4");
+            richTextBox_Rx.AppendText("错误，参考：msg,1225,h-2-4");
             richTextBox_Rx.AppendText(System.Environment.NewLine);
-            richTextBox_Rx.AppendText("表示匹配0x12，从第2个字节开始，连续4个字节，高字节在前合成10进制数");
+            richTextBox_Rx.AppendText("表示匹配报头0x12、0x25，从第2个字节开始，连续4个字节，高字节在前合成10进制数");
+        }
+
+        private void SystemCfg(string[] val)
+        {
+
         }
 
         /// <summary>
@@ -287,9 +279,10 @@ namespace 串口助手
         {
             try
             {
-                if (val[1].ToUpper() != "CS")
+                if (val.Length == 1)
                     return;
-                byte[] data = StringToByte("HEX", val[2]);
+                DataTypeConversion dataType = new DataTypeConversion();
+                byte[] data = dataType.StringToByte("HEX", val[1]);
                 if (data == null)
                     return;
                 int cs = 0;
@@ -311,6 +304,7 @@ namespace 串口助手
         {
             try
             {
+                DataTypeConversion dataType = new DataTypeConversion();
                 string data_type = "HEX";
                 string new_type = "ASCII";
                 if (val[1].ToUpper() == "HEX")
@@ -318,10 +312,10 @@ namespace 串口助手
                     data_type = "ASCII";
                     new_type = "HEX";
                 }
-                byte[] t = StringToByte(data_type, val[2]);
+                byte[] t = dataType.StringToByte(data_type, val[2]);
                 if (t == null)
                     return;
-                string str = ByteToString(new_type, t, t.Length);
+                string str = dataType.ByteToString(new_type, t, t.Length);
                 richTextBox_Rx.AppendText(System.Environment.NewLine + str);
             }
             catch { }
@@ -438,64 +432,6 @@ namespace 串口助手
                 " 31  1F  US    63  3F   ?    95  5F   _   127  7F   DEL\r\n");
         }
 
-
-        private byte[] StringToByte(string data_type, string data)
-        {
-            try
-            {
-                byte[] buf;
-                if (data_type == "ASCII")
-                {
-                    buf = Encoding.Default.GetBytes(data);
-                }
-                else
-                {
-                    int i = 0, length, len;
-                    //string pattern = @"\s";
-                    string replacement = "";
-                    Regex rgx = new Regex(@"\s");
-                    string str = rgx.Replace(data, replacement);
-
-                    length = (str.Length - str.Length % 2) / 2;
-                    len = length;
-                    if (str.Length % 2 != 0)
-                        len++;
-                    buf = new byte[len];
-                    //逐个字符变为16进制字节数据
-                    for (i = 0; i < length; i++)
-                    {
-                        buf[i] = Convert.ToByte(str.Substring(i * 2, 2), 16);
-                    }
-                    if (str.Length % 2 != 0)
-                    {
-                        buf[i] = Convert.ToByte(str.Substring(i * 2, 1), 16);
-                        length++;
-                    }
-                }
-                return buf;
-            }
-            catch { }
-            return null;
-        }
-
-        private string ByteToString(string data_type, byte[] data, int length)
-        {
-            try
-            {
-                string s = "";
-                if (data_type == "ASCII")
-                {
-                    s = Encoding.Default.GetString(data, 0, length);
-                }
-                else
-                {
-                    s = BitConverter.ToString(data.Skip(0).Take(length).ToArray()).Replace("-", " ");
-                }
-                return s;
-            }
-            catch { }
-            return "";
-        }
     }
 }
 

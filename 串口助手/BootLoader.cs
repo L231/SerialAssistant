@@ -29,11 +29,11 @@ namespace 串口助手
 
         private void BootloaderTx(byte[] data, int length)
         {
-            if (gComMode == "TCP Client")
-                server.Send(data, 0, length, SocketFlags.None);
+            if (masterComm.type == "TCP Client")
+                masterComm.tcp.Send(data, 0, length, SocketFlags.None);
             else
             {
-                serialPort1.Write(data, 0, length);
+                masterComm.uart.Write(data, 0, length);
             }
         }
         private void ComClearRx()
@@ -41,21 +41,49 @@ namespace 串口助手
             byte[] buf = new byte[4096];
             try
             {
-                if (gComMode == "TCP Client")
+                if (masterComm.type == "TCP Client")
                 {
-                    server.ReceiveTimeout = 1;
-                    server.Receive(buf);
+                    masterComm.tcp.ReceiveTimeout = 1;
+                    masterComm.tcp.Receive(buf);
                 }
                 else
                 {
-                    buf = new byte[serialPort1.BytesToRead];
-                    serialPort1.ReadTimeout = 1;
-                    serialPort1.Read(buf, 0, buf.Length);
+                    buf = new byte[masterComm.uart.BytesToRead];
+                    masterComm.uart.ReadTimeout = 1;
+                    masterComm.uart.Read(buf, 0, buf.Length);
                 }
             }
             catch
             { }
         }
+        private int BootloaderRx(byte[] buf)
+        {
+            try
+            {
+                int length = 0;
+                if (masterComm.type == "TCP Client")
+                {
+                    masterComm.tcp.ReceiveTimeout = 1000;
+                    length = masterComm.tcp.Receive(buf);
+                }
+                else
+                {
+                    length = masterComm.uart.BytesToRead;
+                    masterComm.uart.Read(buf, 0, length);
+                }
+                return length;
+            }
+            catch
+            { }
+            return 0;
+        }
+
+        private void BootloaderStatusShow(string text)
+        {
+            richTextBox_HexShow.AppendText(DateTime.Now.ToString("HH:mm:ss.fff") + ">>" + text + System.Environment.NewLine);
+            richTextBox_HexShow.ScrollToCaret();
+        }
+
         public void FirmwareFileRead()
         {
             #region Firmware文件解析
@@ -169,7 +197,6 @@ namespace 串口助手
             HexRead.Close();
             stopwatch.Stop();
             TimeSpan timeSpan = stopwatch.Elapsed;
-            BootloaderStatusShow(System.Environment.NewLine);
             if ((FirmwareSize / 1024) > MCUAppSize)
             {
                 button_Download.Enabled = false;
@@ -181,11 +208,22 @@ namespace 串口助手
             {
                 BootloaderStatusShow("已加载，Size = " + (FirmwareSize / 1024.0).ToString("f3") + "KB");
             }
-            BootloaderStatusShow("总用时：" + timeSpan.TotalSeconds.ToString("f3"));
+            BootloaderStatusShow("总用时：" + timeSpan.TotalSeconds.ToString("f3") + System.Environment.NewLine);
             toolStripButton_OpenFile.Enabled = true;
             toolStripComboBox_LoaderFile.Enabled = true;
             threadBootloaderFile.Abort();
             #endregion
+        }
+
+        private void toolStripComboBox_LoaderFile_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (toolStripComboBox_LoaderFile.Enabled)
+            {
+                toolStripComboBox_LoaderFile.Enabled = false;
+                threadBootloaderFile = new Thread(FirmwareFileRead);
+                threadBootloaderFile.IsBackground = true;
+                threadBootloaderFile.Start();
+            }
         }
 
         private void toolStripButton_OpenFile_Click(object sender, EventArgs e)
@@ -241,9 +279,10 @@ namespace 串口助手
             byte[] connect = { 0xAA, 0x0A };
             byte[] ack = new byte[12];
             ack[0] = 0xFF;
+            int errCnt = 0;
             while (true)
             {
-                if (toolStripButton_BootOn.Text == "BOOT_ON")
+                if (toolStripButton_BootOn.Text == "GOTO_BOOT")
                 {
                     threadBootloader.Abort();
                     return;
@@ -252,17 +291,23 @@ namespace 串口助手
                 bootin[2] = Convert.ToByte(toolStripComboBox_MCU.Text);
                 bootin[bootin.Length - 1] = CheckSum(bootin, bootin.Length - 1);
                 BootloaderTx(bootin, bootin.Length);
-                Thread.Sleep(200);
+                Thread.Sleep(100);
+                if (errCnt++ > 50)
+                    Thread.Sleep(1000);
                 /* 发送自动波特率检测帧 */
                 BootloaderTx(auto_baudrate, 1);
-                Thread.Sleep(100);
+                Thread.Sleep(50);
+                ComClearRx();
 
                 connect[connect.Length - 1] = CheckSum(connect, connect.Length - 1);
                 BootloaderTx(connect, connect.Length);
-                Thread.Sleep(200);
-                ComRx(ack, ack.Length);
-                if (ack[0] != 0xAA || ack[ack.Length - 1] != CheckSum(ack, ack.Length - 1))
+                Thread.Sleep(100);
+                //收到的回复，长度不对、报头不对、校验不通过
+                if (BootloaderRx(ack) != ack.Length || 
+                    ack[0] != 0xAA || 
+                    ack[ack.Length - 1] != CheckSum(ack, ack.Length - 1))
                     continue;
+
                 MCUAppSize = (int)ack[5] << 8 | ack[6];
                 FirmwarePackSize = (int)ack[7] << 8 | ack[8];
                 if (MCUAppSize == 0 || FirmwarePackSize == 0)
@@ -273,7 +318,7 @@ namespace 串口助手
                 button_Run.Enabled = true;
                 toolStripButton_BootOn.BackColor = Color.Lime;
                 //toolStripButton_BootOn.Text = "运行";
-                toolStripButton_BootOn.Text = "BOOT_ON";
+                toolStripButton_BootOn.Text = "GOTO_BOOT";
                 toolStripLabel_BootLinkStatus.BackColor = Color.LimeGreen;
                 if (ack[9] != bootin[2])
                     toolStripLabel_BootLinkStatus.Text = (8 << ack[10]) + "位,MCU" + ack[9] + "进入BootLoader！" + "FlashPage:" + FirmwarePackSize;
@@ -310,7 +355,7 @@ namespace 串口助手
         }
         private void toolStripButton_BootOn_Click(object sender, EventArgs e)
         {
-            if (toolStripButton_BootOn.Text == "BOOT_ON")
+            if (toolStripButton_BootOn.Text == "GOTO_BOOT")
             {
                 gBootloaderFlag = true;
                 toolStripLabel_BootLinkStatus.Text = "";
@@ -324,9 +369,9 @@ namespace 串口助手
             else if (toolStripButton_BootOn.Text == "停止")
             {
                 gBootloaderFlag = false;
-                toolStripLabel_BootLinkStatus.Text = "BOOT_ON ERROR";
+                toolStripLabel_BootLinkStatus.Text = "GOTO_BOOT ERROR";
                 toolStripButton_BootOn.BackColor = Color.Lime;
-                toolStripButton_BootOn.Text = "BOOT_ON";
+                toolStripButton_BootOn.Text = "GOTO_BOOT";
                 //threadBootloader.Abort();
             }
             //else if(toolStripButton_BootOn.Text == "运行")
@@ -337,19 +382,20 @@ namespace 串口助手
 
         private void button_Run_Click(object sender, EventArgs e)
         {
-            int cnt = 5;
+            //int cnt = 5;
             byte[] cmd = { 0x5A, 0x5A, 0xA5, 0xA6 };
             progressBar_Firmware.Value = 0;
-            /* 连发几次，确保跳转 */
-            while (cnt-- > 0)
-            {
-                BootloaderTx(cmd, cmd.Length);
-                Thread.Sleep(50);
-            }
+            ///* 连发几次，确保跳转 */
+            //while (cnt-- > 0)
+            //{
+            //    BootloaderTx(cmd, cmd.Length);
+            //    Thread.Sleep(50);
+            //}
+            BootloaderTx(cmd, cmd.Length);
             button_Download.Enabled = false;
             button_Erase.Enabled = false;
             button_Uploading.Enabled = false;
-            toolStripButton_BootOn.Text = "BOOT_ON";
+            toolStripButton_BootOn.Text = "GOTO_BOOT";
             toolStripLabel_BootLinkStatus.BackColor = Color.OrangeRed;
             toolStripLabel_BootLinkStatus.Text = "跳转APP";
             BootloaderStatusShow("跳转APP" + System.Environment.NewLine);
@@ -382,7 +428,7 @@ namespace 串口助手
                 //    Thread.Sleep(450);
                 //else
                 Thread.Sleep(delay);
-                AckLen = ComRx(ack);
+                AckLen = BootloaderRx(ack);
 
                 int len = FirmwarePackSize;
                 /* 最后一包数据 */
@@ -402,7 +448,7 @@ namespace 串口助手
                     //delay += 50;
                     if (++ErrCnt >= 5)
                     {
-                        BootloaderStatusShow("0x" + (a.ToString("X8")) + ":L" + (AckLen - 3));
+                        BootloaderStatusShow("0x" + (a.ToString("X8")) + ":L" + (AckLen - 3) + System.Environment.NewLine);
                         //toolStripTextBox_BootReadDelay.Text = delay.ToString();
                         return;
                     }
@@ -426,7 +472,6 @@ namespace 串口助手
             byte[] cmd = new byte[FirmwarePackSize + 8];
 
             int delay = Convert.ToInt32(numericUpDown_Write.Value);
-            BootloaderStatusShow(System.Environment.NewLine);
             BootloaderStatusShow("烧录中，Size = " + (FirmwareSize / 1024.0).ToString("f3") + "KB");
             progressBar_Firmware.Value = 0;
             progressBar_Firmware.Maximum = FirmwareSize;
@@ -454,28 +499,28 @@ namespace 串口助手
                     ComClearRx();
                     BootloaderTx(cmd, cmd.Length);
                     Thread.Sleep(delay);
-                    if (gComMode != "TCP Client")
+                    if (masterComm.type != "TCP Client")
                     {
-                        len = serialPort1.BytesToRead;
+                        len = masterComm.uart.BytesToRead;
                     }
                     byte[] ack = new byte[len];
                     if (len < 3)
                     {
                         if (++ErrCnt >= 5)
                         {
-                            BootloaderStatusShow("0x" + (a.ToString("X8")) + ":应答异常");
+                            BootloaderStatusShow("0x" + (a.ToString("X8")) + ":应答异常" + System.Environment.NewLine);
                             goto THREAD_BOOTLOADER_DOWNLOAD_OFF;
                         }
                         continue;
                     }
                     ack[1] = 1;
-                    ComRx(ack);
+                    BootloaderRx(ack);
                     if (ack[1] != 0 || ack[0] != 0xA1 || ack[2] != 0x5E)
                     {
                         //delay += 50;
                         if (++ErrCnt >= 5)
                         {
-                            BootloaderStatusShow("0x" + (a.ToString("X8")) + ":Err" + ack[1]);
+                            BootloaderStatusShow("0x" + (a.ToString("X8")) + ":Err" + ack[1] + System.Environment.NewLine);
                             goto THREAD_BOOTLOADER_DOWNLOAD_OFF;
                         }
                         continue;
@@ -545,9 +590,9 @@ namespace 串口助手
                     BootloaderTx(cmd, cmd.Length);
                 }
                 Thread.Sleep(500);
-                if (gComMode != "TCP Client")
+                if (masterComm.type != "TCP Client")
                 {
-                    len = serialPort1.BytesToRead;
+                    len = masterComm.uart.BytesToRead;
                     if (len == 0)
                     {
                         continue;
@@ -555,7 +600,7 @@ namespace 串口助手
                 }
                 byte[] ack = new byte[len];
                 ack[1] = 1;
-                ComRx(ack);
+                BootloaderRx(ack);
                 if (ack[0] == 0xA3 && ack[1] == 0 && ack[2] == 0x5C)
                 {
                     progressBar_Firmware.Value = FirmwareSize;

@@ -13,6 +13,8 @@ using System.Text.RegularExpressions;
 using System.IO;
 using System.Threading;
 using IniFile;
+using System.Management;
+using System.Runtime.InteropServices;
 
 namespace 串口助手
 {
@@ -21,98 +23,61 @@ namespace 串口助手
         int gTxNum = 0;
         int gRxNum = 0;
         bool gTimestampFlag = true;
-        System.Timers.Timer gTimer_RxAutoNewline = new System.Timers.Timer(100);
 
+        const int TimerRxAutoNewlinePeriod = 5;
+        System.Timers.Timer gTimer_RxAutoNewline = new System.Timers.Timer(TimerRxAutoNewlinePeriod);
 
+        bool gTxShowFlag = false;
 
-        private Socket server;
-        Thread threadServer;
+        bool threadTableTx_RunFlag = false;
+        Thread threadTableTx = null;
 
-        string gComMode;
         Config gCfg = new Config();
-
-
+        ContextMenu contextMenu = new ContextMenu();
+        CommLog commLog = new CommLog();
+        public SuperMsg SuperMsgCurrent = null;
+        List<object> SuperMsgList = new List<object>();
 
         private void Timer_RxAutoNewline_OutHandle(object sender, EventArgs e)
         {
+            ////最新行已显示了数据，则进行换行
+            //if (richTextBox_Rx.Text[richTextBox_Rx.Text.Length - 1] != '\n')
+            //if (!gTimestampFlag)
+            //    WriteRxMsg(Color.White, System.Environment.NewLine);
             gTimestampFlag = true;
-            richTextBox_Rx.AppendText(System.Environment.NewLine);
             gTimer_RxAutoNewline.Stop();
         }
-        private void Timer_RxAutoNewLine_Init()
+        private void Timer_RxAutoNewLine_Init(int delay)
         {
-            ///* 如果波特率>10000, t(5byte)<5ms */
-            //if (serialPort1.BaudRate > 10000)
-            gTimer_RxAutoNewline = new System.Timers.Timer(30);
-            //else
-            //    gTimer_RxAutoNewline = new System.Timers.Timer(150000 / serialPort1.BaudRate);
+            gTimer_RxAutoNewline.Interval = delay;
             gTimer_RxAutoNewline.Elapsed += new System.Timers.ElapsedEventHandler(Timer_RxAutoNewline_OutHandle);
             gTimer_RxAutoNewline.AutoReset = true;
         }
 
-        private void TCP_ClientRx(object sockConnectionparn)
+        /// <summary>
+        /// tcp客户端的接收处理
+        /// </summary>
+        /// <param name="sender"></param>
+        private void TCP_ClientRx(object sender)
         {
-            Socket sockConnection = sockConnectionparn as Socket;
+            Socket sockConnection = sender as Socket;
             byte[] buffMsgRec = new byte[1024 * 1024];
             int len = 0;
-            string time = "";
             while (true)
             {
-                if (gBootloaderFlag == false)
+                if (gBootloaderFlag == true)
                 {
-                    try
-                    {
-                        sockConnection.ReceiveTimeout = 100;
-                        len = sockConnection.Receive(buffMsgRec);
-                        if (len > 0)
-                        {
-                            /* 自动换行开启了，需要先关闭自动换行的定时器 */
-                            if (toolStripButton_RxAutoNewline.Text == "ON" && gTimer_RxAutoNewline.Enabled)
-                            {
-                                gTimer_RxAutoNewline.Stop();
-                            }
-                            /* 时间戳开启了，同时强制打开换行 */
-                            if (toolStripButton_Timestamp.Text == "ON")
-                            {
-                                if (gTimestampFlag)
-                                {
-                                    gTimestampFlag = false;
-                                    richTextBox_Rx.SelectionColor = Color.Gold;
-                                    time = DateTime.Now.ToString("HH:mm:ss.fff") + "<<";
-                                    richTextBox_Rx.AppendText(time);
-                                    richTextBox_Rx.SelectionColor = Color.White;
-                                }
-                            }
-                            string str = ByteToString(toolStripButton_RxHEX.Text, buffMsgRec, len);
-                            richTextBox_Rx.AppendText(str);
-                            LogWriteMsg(time + str);
-                            if (toolStripButton_RxHEX.Text != "ASCII")
-                            {
-                                MsgLookup_16To10(buffMsgRec, len, time);
-                            }
-                            /* 自动换行打开了，此时开启它的定时器 */
-                            if (toolStripButton_RxAutoNewline.Text == "ON")
-                            {
-                                gTimer_RxAutoNewline.Stop();
-                                gTimer_RxAutoNewline.Start();
-                            }
-
-                            if (toolStripButton_RecClear.Enabled == false)
-                            {
-                                toolStripButton_RecClear.Enabled = true;
-                                toolStripButton_RecClear.BackColor = Color.Gold;
-                            }
-                            gRxNum += len;
-                            Label_Status.Text = "OPEN    TX:" + gTxNum + "    RX:" + gRxNum;
-                        }
-                    }
-                    catch
-                    {
-                        continue;
-                    }
-                }
-                else
                     Thread.Sleep(100);
+                    continue;
+                }
+                try
+                {
+                    sockConnection.ReceiveTimeout = 100;
+                    len = sockConnection.Receive(buffMsgRec);
+                    if (数据接收_显示_解析_输出日志(sender, "tcp", buffMsgRec, len) == false)
+                        continue;
+                }
+                catch { }
             }
         }
         public Form1()
@@ -127,22 +92,26 @@ namespace 串口助手
                 SerialPortNumberUpadta(toolStripComboBox_SerialPort);
                 toolStripComboBox_SerialPort.Text = System.IO.Ports.SerialPort.GetPortNames()[0];
             }
-            catch
-            {
-
-            }
-            gComMode = "";
-            toolStripButton_TxHEX.Text = "ASCII";
-            toolStripButton_RxHEX.Text = "ASCII";
+            catch { }
+            masterComm.type = "";
             toolStripButton_Master.Text = "开启";
-            toolStripButton_Timestamp.Text = "OFF";
-            toolStripButton_RxAutoNewline.Text = "OFF";
+            toolStripTextBox自动换行定时器周期.LostFocus += new EventHandler(toolStripTextBox自动换行定时器周期_LostFocusClick);
 
             加载设定();
             gCfg.TableTxCreate(tableLayoutPanel1, tableLayoutPanel2);
             splitContainer1.Size = new Size(246, (20 * gCfg.TxListNum) + 200);
             gCfg.TxListFirstLoad();
             TxListEventReg();
+            加载缓存的设备();
+            toolStripButton_log.Click += new System.EventHandler(commLog.Button_log_Click);
+            contextMenu.ContextMenuTxListInit();
+            contextMenu.ContextMenu_CreateSuperMsgClickCfg(CreateSuperMsg_Handler);
+            contextMenu.TxListSimpleMenu.Opening += new CancelEventHandler(TxListSimpleMenu_Opening);
+            richTextBox_Rx.ContextMenuStrip = contextMenu.RxShowMenu;
+            flowLayoutPanel_SuperMsg.ContextMenuStrip = contextMenu.CreateSuperMsgMenu;
+
+            textBoxTxListName.LostFocus += new EventHandler(textBoxTxListName_LostFocusClick);
+            textBoxTxListMsg.LostFocus += new EventHandler(textBoxTxListMsg_LostFocusClick);
         }
 
         private void TxListEventReg()
@@ -153,105 +122,223 @@ namespace 串口助手
                 gCfg.TextboxTX[i].GotFocus += new EventHandler(TextboxTX_GotFocusClick);
                 //gCfg.TextboxTX[i].LostFocus += new EventHandler(TextboxTX_LostFocusClick);
                 gCfg.Button[i].Click += new EventHandler(button_Click);
+                gCfg.Button[i].ContextMenuStrip = contextMenu.TxListMenu;
+
+                gCfg.Checkbox[i].MouseHover += new EventHandler(TxListHelp_MouseHover);
+                gCfg.TextboxTimer[i].MouseHover += new EventHandler(TxListHelp_MouseHover);
             }
         }
 
+        /// <summary>
+        /// 获取所有的串口设备号
+        /// </summary>
+        /// <param name="combo"></param>
         private static void SerialPortNumberUpadta(ToolStripComboBox combo)
         {
             /* 清除当前组合框的下拉菜单内容 */
             combo.Items.Clear();
-            combo.Items.AddRange(System.IO.Ports.SerialPort.GetPortNames());
-            combo.Items.Add("TCP Client");
+            //combo.Items.AddRange(System.IO.Ports.SerialPort.GetPortNames());
+            //combo.Items.Add("TCP Client");
             //combo.Items.Add("TCP Server");
+            using (ManagementObjectSearcher searcher = new ManagementObjectSearcher
+                ("select * from Win32_PnPEntity where Name like '%(COM%'"))
+            {
+                var hardInfos = searcher.Get();
+                foreach(var hardInfo in hardInfos)
+                {
+                    if(hardInfo.Properties["Name"].Value != null)
+                    {
+                        string deviceName = hardInfo.Properties["Name"].Value.ToString();
+                        combo.Items.Add(deviceName);
+                    }
+                }
+            }
+            combo.Items.Add("TCP Client");
         }
-        
-        private void ComTx(string data, string data_type)
+
+        /// <summary>
+        /// 直接发送报文，无解析动作
+        /// </summary>
+        /// <param name="data"></param>
+        /// <param name="data_type"></param>
+        private bool CommSendData(MultiCommunication_t dev, string data, string data_type)
         {
+            if (data == "")
+                return true;
             try
             {
                 int length = 0;
-                byte[] TxBuf = StringToByte(data_type, data);
+                DataTypeConversion dataType = new DataTypeConversion();
+                byte[] TxBuf = dataType.StringToByte(data_type, data);
                 if (TxBuf == null)
-                    return;
+                    return false;
+                if(dev.flagCheck)
+                {
+                    dev.msgtail = new byte[1];
+                    dev.msgtail[0] = dataType.GetByteCheckSum(TxBuf, TxBuf.Length);
+                }
+                if (dev.flagMsgTail)
+                {
+                    int TxBufLen = TxBuf.Length;
+                    Array.Resize<byte>(ref TxBuf, TxBufLen + dev.msgtail.Length);
+                    Array.Copy(dev.msgtail, 0, TxBuf, TxBufLen, dev.msgtail.Length);
+                }
                 length = TxBuf.Length;
-                string time = "";
+                //接收区显示发送内容
+                string show = "";
                 if (gTxShowFlag && gBootloaderFlag == false)
                 {
-                    richTextBox_Rx.SelectionColor = Color.Gold;
-                    time = DateTime.Now.ToString("HH:mm:ss.fff") + ">>";
-                    richTextBox_Rx.AppendText(time);
-                    //richTextBox_Rx.SelectionColor = Color.White;
-                    string str = ByteToString(data_type, TxBuf, length);
-                    richTextBox_Rx.AppendText(str);
-                    LogWriteMsg(time + str);
-                    richTextBox_Rx.AppendText(System.Environment.NewLine);
+                    if (dev.name != "S0")
+                        show = "[" + dev.name + "]";
+                    show += DateTime.Now.ToString("HH:mm:ss.fff") + ">>";
+                    DataTypeConversion Conversion = new DataTypeConversion();
+                    show += Conversion.ByteToString(data_type, TxBuf, length);
+                    commLog.LogWriteMsg(show);
+                    SendMsgEcho(System.Environment.NewLine + show);
                 }
-                if (gComMode == "TCP Client")
-                    server.Send(TxBuf, 0, length, SocketFlags.None);
-                else
+                if(SuperMsgCurrent != null)
                 {
-                    serialPort1.Write(TxBuf, 0, length);
+                    textBox_SuperMsgRxShow.AppendText(System.Environment.NewLine + show);
                 }
+                //发送数据
+                if (dev.type == "TCP Client")
+                {
+                    for(int i = 0; i < length; i += 4096)
+                    {
+                        if(i + 4096 > length)
+                            dev.tcp.Send(TxBuf, i, length - i, SocketFlags.None);
+                        else
+                            dev.tcp.Send(TxBuf, i, 4096, SocketFlags.None);
+                    }
+                }
+                else
+                    dev.uart.Write(TxBuf, 0, length);
                 gTxNum += length;
                 Label_Status.Text = "OPEN    TX:" + gTxNum + "    RX:" + gRxNum;
+                return true;
             }
-            catch
+            catch { }
+            return false;
+        }
+        public void SuperMsgSendData(string data, string msgFunc)
+        {
+            if (toolStripButton_Master.Text == "开启")
+                return;
+            //处理报尾
+            MasterCommMsgTailHandle();
+            CommSendData(masterComm, data, "HEX");
+            textBox_SuperMsgRxShow.AppendText("     " + msgFunc);
+        }
+        private void CommSingleMsgSend(string data, string data_type)
+        {
+            if (data == "")
+                return;
+            try
             {
-
+                MultiCommunication_t Dev = new MultiCommunication_t();
+                string txBuf = "";
+                //拆分当前报文，可能有多个设备的报文
+                string[] msgAll = data.Split(new string[] { "$$" }, StringSplitOptions.RemoveEmptyEntries);
+                for (int pos = 0; pos < msgAll.Length; pos++)
+                {
+                    string[] devData = msgAll[pos].Split('$');
+                    if (devData.Length == 1)
+                        txBuf = devData[0];
+                    else
+                        txBuf = devData[1];
+                    //找出当前的发送端口，当前是主设备
+                    if (devData.Length == 1 ||
+                        (devData.Length == 2 && devData[0].ToUpper() == "S0"))
+                    {
+                        Dev.type = masterComm.type;
+                        Dev.name = masterComm.name;
+                        Dev.tcp = masterComm.tcp;
+                        Dev.uart = masterComm.uart;
+                        //处理报尾
+                        MasterCommMsgTailHandle();
+                        Dev.flagCheck = masterComm.flagCheck;
+                        Dev.flagMsgTail = masterComm.flagMsgTail;
+                        Dev.msgtail = masterComm.msgtail;
+                    }
+                    else
+                    {
+                        bool devErrFlag = true;
+                        devData[0] = devData[0].ToUpper();
+                        foreach (MultiCommunication_t p in listMultiComm)
+                        {
+                            if (p.name == devData[0])
+                            {
+                                devErrFlag = false;
+                                Dev.type = p.type;
+                                Dev.name = p.name;
+                                Dev.tcp = p.tcp;
+                                Dev.uart = p.uart;
+                                Dev.flagMsgTail = p.flagMsgTail;
+                                Dev.msgtail = p.msgtail;
+                                data_type = p.hex;
+                                break;
+                            }
+                        }
+                        if (devErrFlag)
+                            continue;
+                    }
+                    CommSendData(Dev, txBuf, data_type);
+                }
             }
+            catch { }
         }
 
-        private int ComRx(byte[] buf)
+        private bool MasterCommMsgTailHandle()
+        {
+            //处理报尾
+            switch (MasterMsgEnd.Text)
+            {
+                case "无":
+                    masterComm.flagMsgTail = false;
+                    break;
+                case "CS":
+                    masterComm.flagMsgTail = true;
+                    masterComm.flagCheck = true;
+                    break;
+                default:
+                    masterComm.flagMsgTail = true;
+                    masterComm.flagCheck = false;
+                    DataTypeConversion dataType = new DataTypeConversion();
+                    masterComm.msgtail = dataType.StringToByte("HEX", MasterMsgEnd.Text);
+                    break;
+            }
+            return true;
+        }
+        private byte[] 串口接收数据(object sender, ref int length)
         {
             try
             {
-                int length = 0;
-                if (gComMode == "TCP Client")
+                System.IO.Ports.SerialPort uart = (System.IO.Ports.SerialPort)sender;
+                length = uart.BytesToRead;
+                do
                 {
-                    server.ReceiveTimeout = 1000;
-                    length = server.Receive(buf);
-                }
-                else
-                {
-                    length = serialPort1.Read(buf, 0, buf.Length);
-                }
-                return length;
-                //gRxNum += length;
-                //Label_Status.Text = "OPEN    TX:" + gTxNum + "    RX:" + gRxNum;
+                    Delay(1);
+                } while (length != uart.BytesToRead);
+                //预留一个字节，为后面解决中文乱码做准备
+                byte[] buf = new byte[length + 1];
+                uart.Read(buf, 0, length);
+                return buf;
             }
             catch
             { }
-            return 0;
+            return null;
         }
-        private void ComRx(byte[] buf, int length)
+        private void CommMasterButtonSend()
         {
             try
             {
-                if (gComMode == "TCP Client")
-                {
-                    server.ReceiveTimeout = 1000;
-                    server.Receive(buf);
-                }
-                else
-                {
-                    serialPort1.Read(buf, 0, length);
-                }
-                gRxNum += length;
-                Label_Status.Text = "OPEN    TX:" + gTxNum + "    RX:" + gRxNum;
+                if (TextBox_Tx.Text == "")
+                    return;
+                //处理报尾
+                MasterCommMsgTailHandle();
+                CommSendData(masterComm, TextBox_Tx.Text, toolStripButton_TxHEX.Text);
             }
-            catch
-            { }
-        }
-        private void SerialPortTx()
-        {
-            try
-            {
-                ComTx(richTextBox_Tx.Text, toolStripButton_TxHEX.Text);
-            }
-            catch
-            {
-
-            }
+            catch { }
             if (toolStripButton_RecClear.Enabled == false)
             {
                 toolStripButton_RecClear.Enabled = true;
@@ -259,37 +346,35 @@ namespace 串口助手
             }
         }
 
-
-        private void timer1_Tick(object sender, EventArgs e)
-        {
-            SerialPortNumberUpadta(toolStripComboBox_SerialPort);
-        }
-
+      
         private void toolStripButton_Master_Click(object sender, EventArgs e)
         {
+            if (设备注册("S0",
+                        toolStripButton_Master.Text,
+                        toolStripComboBox_SerialPort.Text,
+                        toolStripComboBox_BaudRate.Text,
+                        toolStripTextBox_TCPPort.Text,
+                        MasterMsgEnd.Text,
+                        "HEX",
+                        "") == false)
+                return;
             if (toolStripButton_Master.Text == "开启")
             {
-                gComMode = toolStripComboBox_SerialPort.Text;
+                foreach(MultiCommunication_t p in listMultiComm)
+                {
+                    if(p.name == "S0")
+                    {
+                        masterComm.type = p.type;
+                        masterComm.name = p.name;
+                        masterComm.tcp = p.tcp;
+                        masterComm.uart = p.uart;
+                        masterComm.flagMsgTail = p.flagMsgTail;
+                        masterComm.msgtail = p.msgtail;
+                        break;
+                    }
+                }
                 try
                 {
-                    if (gComMode == "TCP Client")
-                    {
-                        IPAddress addr = IPAddress.Parse(toolStripComboBox_BaudRate.Text);
-                        IPEndPoint endPoint = new IPEndPoint(addr, int.Parse(toolStripTextBox_TCPPort.Text));
-                        server = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                        server.Connect(endPoint);
-                        server.ReceiveTimeout = 500;
-                        threadServer = new Thread(TCP_ClientRx);
-                        threadServer.IsBackground = true;
-                        threadServer.Start(server);
-                    }
-                    else
-                    {
-                        serialPort1.PortName = toolStripComboBox_SerialPort.Text;
-                        serialPort1.BaudRate = Convert.ToInt32(toolStripComboBox_BaudRate.Text);
-                        serialPort1.ReadTimeout = 500;
-                        serialPort1.Open();
-                    }
                     toolStripComboBox_SerialPort.Enabled = false;
                     toolStripComboBox_BaudRate.Enabled = false;
                     toolStripTextBox_TCPPort.Enabled = false;
@@ -301,8 +386,6 @@ namespace 串口助手
                     button_Tx.BackColor = Color.Lime;
 
                     Label_Status.Text = "OPEN";
-                    Timer_RxAutoNewLine_Init();
-                    timer1.Stop();
                 }
                 catch
                 {
@@ -313,21 +396,21 @@ namespace 串口助手
             {
                 try
                 {
-                    if (gComMode == "TCP Client")
-                    {
-                        threadServer.Abort();
-                        server.Close();
-                    }
-                    else
-                        serialPort1.Close();
-
+                    //关闭bootloader相关的线程
                     if (threadBootloader != null)
                         threadBootloader.Abort();
                     if (threadBootloaderDownload != null)
                         threadBootloaderDownload.Abort();
                     if (threadBootloaderErase != null)
                         threadBootloaderErase.Abort();
-                    gComMode = "";
+
+                    //关闭发送列表的线程
+                    checkBox_TimSend.Enabled = true;
+                    threadTableTx_RunFlag = false;
+                    if (threadTableTx != null)
+                        threadTableTx.Abort();
+
+                    masterComm.type = "";
                     toolStripComboBox_SerialPort.Enabled = true;
                     toolStripComboBox_BaudRate.Enabled = true;
                     toolStripTextBox_TCPPort.Enabled = true;
@@ -341,7 +424,6 @@ namespace 串口助手
                     Label_Status.Text = "CLOSE";
                     timer_Send.Enabled = false;
                     gTimer_RxAutoNewline.Stop();
-                    timer1.Start();
                 }
                 catch
                 {
@@ -354,7 +436,7 @@ namespace 串口助手
         {
             if (toolStripButton_Master.Text == "关闭")
             {
-                SerialPortTx();
+                CommMasterButtonSend();
             }
             else
                 toolStripButton_Master_Click(toolStripButton_Master, e);
@@ -363,84 +445,17 @@ namespace 串口助手
         private void serialPort1_DataReceived(object sender, System.IO.Ports.SerialDataReceivedEventArgs e)
         {
             /* 选项卡0，普通的通信助手收发 */
-            if (gBootloaderFlag == false)
-            {
-                string time = "";
-                /* 自动换行开启了，需要先关闭自动换行的定时器 */
-                if (toolStripButton_RxAutoNewline.Text == "ON" && gTimer_RxAutoNewline.Enabled)
-                {
-                    gTimer_RxAutoNewline.Stop();
-                }
-                /* 时间戳开启了，同时强制打开换行 */
-                if (toolStripButton_Timestamp.Text == "ON")
-                {
-                    if (gTimestampFlag)
-                    {
-                        gTimestampFlag = false;
-                        richTextBox_Rx.SelectionColor = Color.Gold;
-                        time = DateTime.Now.ToString("HH:mm:ss.fff") + "<<";
-                        richTextBox_Rx.AppendText(time);
-                        richTextBox_Rx.SelectionColor = Color.White;
-                    }
-                }
-                try
-                {
-                    int len = serialPort1.BytesToRead;
-                    byte[] RxBuf = new byte[len];
-                    ComRx(RxBuf, len);
-                    string str = ByteToString(toolStripButton_RxHEX.Text, RxBuf, len);
-                    richTextBox_Rx.AppendText(str);
-                    LogWriteMsg(time + str);
-                    if (toolStripButton_RxHEX.Text != "ASCII")
-                    {
-                        MsgLookup_16To10(RxBuf, len, time);
-                    }
-                    richTextBox_Rx.Focus();
-                    //int cycle = len / 512;
-                    //if (toolStripButton_RxHEX.Text == "ASCII")
-                    //{
-                    //    byte[] RxBuf = new byte[len];
-                    //    ComRx(RxBuf, len);
-                    //    string str = Encoding.Default.GetString(RxBuf);
-                    //    richTextBox_Rx.AppendText(str);
-                    //    richTextBox_Rx.Focus();
-                    //    LogWriteMsg(time + str);
-                    //}
-                    //else
-                    //{
-                    //    byte[] RxBuf = new byte[512];
-                    //    string s;
-                    //    for (int cnt = 0; cnt < cycle; cnt++)
-                    //    {
-                    //        ComRx(RxBuf, 512);
-                    //        s = BitConverter.ToString(RxBuf.Skip(0).Take(512).ToArray()).Replace("-", " ") + " ";
-                    //        richTextBox_Rx.AppendText(s);
-                    //    }
-                    //    ComRx(RxBuf, len % 512);
-                    //    s = BitConverter.ToString(RxBuf.Skip(0).Take(len % 512).ToArray()).Replace("-", " ") + " ";
-                    //    richTextBox_Rx.AppendText(s);
-                    //    MsgLookup_16To10(RxBuf, len % 512, time);
-                    //    richTextBox_Rx.Focus();
-                    //    LogWriteMsg(time + s);
-                    //    richTextBox_Rx.Focus();
-                    //    LogWriteMsg(time + s);
-                    //}
-                }
-                catch
-                {
-                }
-                /* 自动换行打开了，此时开启它的定时器 */
-                if (toolStripButton_RxAutoNewline.Text == "ON")
-                {
-                    gTimer_RxAutoNewline.Start();
-                }
-
-                if (toolStripButton_RecClear.Enabled == false)
-                {
-                    toolStripButton_RecClear.Enabled = true;
-                    toolStripButton_RecClear.BackColor = Color.Gold;
-                }
-            }
+            if (gBootloaderFlag == true)
+                return;
+            int length = 0;
+            /* 使用了超级报文，稍微等待，尽可能确保一次收完 */
+            if (SuperMsgCurrent != null &&
+                (System.IO.Ports.SerialPort)sender == masterComm.uart)
+                Delay(10);
+            byte[] RxBuf = 串口接收数据(sender, ref length);
+            if (RxBuf == null)
+                return;
+            数据接收_显示_解析_输出日志(sender, "uart", RxBuf, length);
         }
 
         private void checkBox_TimSend_CheckedChanged(object sender, EventArgs e)
@@ -464,9 +479,9 @@ namespace 串口助手
 
         private void timer_Send_Tick(object sender, EventArgs e)
         {
-            if (gBootloaderFlag == false && toolStripButton_Master.Text == "关闭" && richTextBox_Tx.Text.Length > 0)
+            if (gBootloaderFlag == false && toolStripButton_Master.Text == "关闭" && TextBox_Tx.Text.Length > 0)
             {
-                SerialPortTx();
+                CommMasterButtonSend();
             }
             else if (gBootloaderFlag)
             {
@@ -478,19 +493,26 @@ namespace 串口助手
         private void toolStripButton_RecClear_Click(object sender, EventArgs e)
         {
             richTextBox_Rx.Text = "";
+            textBox_SuperMsgRxShow.Text = "";
             toolStripButton_RecClear.BackColor = Color.Transparent;
             toolStripButton_RecClear.Enabled = false;
             gTxNum = 0;
             gRxNum = 0;
             Label_Status.Text = "OPEN    TX:" + gTxNum + "    RX:" + gRxNum;
         }
-
+        private void toolStripTextBox自动换行定时器周期_LostFocusClick(object sender, EventArgs e)
+        {
+            DataTypeConversion conversion = new DataTypeConversion();
+            int delay = conversion.GetStringNumber(toolStripTextBox自动换行定时器周期.Text);
+            Timer_RxAutoNewLine_Init(delay);
+        }
 
 
 
 
         private void toolStripButton_SaveSet_MouseDown(object sender, MouseEventArgs e)
         {
+            gCfg.SysCfgFileClear("多通道配置区");
             gCfg.SysCfgFileWrite("基本配置", "端口", toolStripComboBox_SerialPort.Text);
             gCfg.SysCfgFileWrite("基本配置", "波特率/IP", toolStripComboBox_BaudRate.Text);
             gCfg.SysCfgFileWrite("基本配置", "TCP端口", toolStripTextBox_TCPPort.Text);
@@ -503,16 +525,172 @@ namespace 串口助手
             gCfg.SysCfgFileWrite("基本配置", "ButtonTimestamp", toolStripButton_Timestamp.Text + "," + toolStripButton_Timestamp.BackColor.Name);
             gCfg.SysCfgFileWrite("基本配置", "TableTx显隐", splitContainer_Master.Panel2Collapsed.ToString());
             gCfg.SysCfgFileWrite("基本配置", "Tx回显", toolStripLabel1.ForeColor.Name);
+            gCfg.SysCfgFileWrite("基本配置", "主设备的报尾", MasterMsgEnd.Text);
+            gCfg.SysCfgFileWrite("基本配置", "自动换行时间", gTimer_RxAutoNewline.Interval.ToString());
 
-            gCfg.SysCfgFileWrite("发送区", "MasterTx", richTextBox_Tx.Text);
+            gCfg.SysCfgFileWrite("发送区", "MasterTx", TextBox_Tx.Text);
+            gCfg.SysCfgFileWrite("接收区", "RxShowTextSize", richTextBox_Rx.Font.Size.ToString());
 
+            /* 保存发送列表 */
             gCfg.SysCfgFileWrite("发送列表", "path", gCfg.TxListPath);
             if (toolStripTextBox_TxListNum.Text == "")
                 toolStripTextBox_TxListNum.Text = "64";
             gCfg.TxListSave(toolStripTextBox_TxListNum.Text);
+            /* 保存精简发送列表 */
+            try
+            {
+                textBoxTxListName_LostFocusClick(null, null);
+                textBoxTxListMsg_LostFocusClick(null, null);
+                if (txListSimple_List.Count > 0)
+                {
+                    int tx_cnt = 0;
+                    string data = "";
+                    gCfg.IniWrite("TxListSimple",
+                            "按钮个数",
+                            txListSimple_List.Count.ToString(),
+                            gCfg.TxListPath);
+                    foreach (TxListSimple t in txListSimple_List)
+                    {
+                        data = t.DataType.ToString() + '$' + t.MsgName + '$';
+                        if (t.Msg != null && t.Msg.Length > 0)
+                        {
+                            data += t.Msg[0];
+                            for (int lines = 1; lines < t.Msg.Length; lines++)
+                            {
+                                data += "\\n" + t.Msg[lines];
+                            }
+                        }
+                        gCfg.IniWrite("TxListSimple",
+                            "TX" + tx_cnt.ToString(),
+                            data,
+                            gCfg.TxListPath);
+                        tx_cnt++;
+                    }
+                }
+            }
+            catch { }
+
+            /* 保存多通道的信息 */
+            int cnt = 0;
+            if(listMultiComm.Count > 0)
+            {
+                foreach (MultiCommunication_t p in listMultiComm)
+                {
+                    if (p.name == "S0")
+                        continue;
+                    gCfg.SysCfgFileWrite("多通道配置区", "设备" + cnt.ToString(), p.saveInfo);
+                    cnt++;
+                }
+                gCfg.SysCfgFileWrite("多通道配置区", "最大设备数", cnt.ToString());
+            }
+
+            /* 保存超级报文 */
+            cnt = 0;
+            int[] param_cnt = new int[SuperMsgList.Count];
+            foreach (object obj in SuperMsgList)
+            {
+                param_cnt[cnt] = 0;
+                foreach (SuperMsg.ParamClass_t p in ((List<SuperMsg.ParamClass_t>)obj))
+                {
+                    gCfg.IniWrite("SuperMsg",
+                        "指令" + cnt.ToString() + '-' + param_cnt[cnt].ToString(),
+                        p.save_info,
+                        gCfg.TxListPath);
+                    param_cnt[cnt]++;
+                }
+                cnt++;
+            }
+            gCfg.IniWrite("SuperMsg", "指令个数", cnt.ToString(), gCfg.TxListPath);
+            for(int i = 0; i < cnt; i++)
+            {
+                gCfg.IniWrite("SuperMsg",
+                    "指令" + i.ToString(),
+                    param_cnt[i].ToString(),
+                    gCfg.TxListPath);
+                gCfg.IniWrite("SuperMsg",
+                    "指令" + i.ToString() + "报文",
+                    ((List<SuperMsg.ParamClass_t>)SuperMsgList[i])[0].msg_tx,
+                    gCfg.TxListPath);
+            }
+
             MessageBox.Show("发送框保存成功");
         }
 
+        private void 加载超级报文()
+        {
+            /* 清除所有超级报文 */
+            flowLayoutPanel_SuperMsg.Controls.Clear();
+            foreach (object obj in SuperMsgList)
+            {
+                ((List<SuperMsg.ParamClass_t>)obj).Clear();
+            }
+            SuperMsgList.Clear();
+
+            try
+            {
+                int cnt = Convert.ToInt32(gCfg.IniRead("SuperMsg", "指令个数", gCfg.TxListPath));
+                int param_num;
+                for (int i = 0; i < cnt; i++)
+                {
+                    SuperMsg superMsg = new SuperMsg();
+                    param_num = Convert.ToInt32(gCfg.IniRead("SuperMsg", "指令" + i.ToString(), gCfg.TxListPath));
+                    for (int pos = 0; pos < param_num; pos++)
+                    {
+                        string save_info = gCfg.IniRead("SuperMsg",
+                            "指令" + i.ToString() + '-' + pos.ToString(),
+                            gCfg.TxListPath);
+                        superMsg.SuperMsgListParamReg(save_info);
+                    }
+                    superMsg.SuperMsgCreate(this);
+                    superMsg.SuperMsgTxCfg(gCfg.IniRead("SuperMsg", "指令" + i.ToString() + "报文", gCfg.TxListPath));
+                    flowLayoutPanel_SuperMsg.Controls.Add(superMsg.panelMsg);
+                }
+            }
+            catch { }
+        }
+        private void 加载简单的发送列表()
+        {
+            //先清除所有
+            txListSimple_List.Clear();
+            buttonListSimple.Clear();
+            splitContainer_TxListSimple.Panel2.Controls.Clear();
+            buttonListSimpleNumber = 0;
+
+            try
+            {
+                int TxSimpleNum = Convert.ToInt32(gCfg.IniRead("TxListSimple", "按钮个数", gCfg.TxListPath));
+                for (int i = 0; i < TxSimpleNum; i++)
+                {
+                    TxListSimple txListSimple = new TxListSimple();
+                    string data = gCfg.IniRead("TxListSimple", "TX" + i.ToString(), gCfg.TxListPath);
+                    string[] str = data.Split('$');
+                    txListSimple.DataType = Convert.ToInt32(str[0]);
+                    txListSimple.MsgName = str[1];
+                    string[] msg_data = str[2].Split(new string[] { "\\n" }, StringSplitOptions.RemoveEmptyEntries);
+                    txListSimple.Msg = msg_data;
+                    txListSimple_List.Add(txListSimple);
+                }
+            }
+            catch { }
+
+            //生成按钮
+            if (txListSimple_List.Count > 0)
+            {
+                int last = txListSimple_List.Count - 1;
+                for (int i = 0; i < txListSimple_List.Count; i++)
+                {
+                    buttonTxListSimpleCreate(txListSimple_List[last - i].MsgName);
+                }
+                txListSimple_DataLoad(0);
+            }
+            else
+            {
+                TxListSimpleCreate(0);
+            }
+            //当前未打开精简发送列表，则折叠Panel1
+            if (tabControl_TxList.SelectedTab == tabPage_TxList)
+                splitContainer_TxListSimple.Panel1Collapsed = true;
+        }
         private void 加载设定()
         {
             if (gCfg.SysCfgFileExists())
@@ -546,64 +724,54 @@ namespace 串口助手
                     if (toolStripLabel1.ForeColor == Color.Red)
                         gTxShowFlag = true;
 
-                    richTextBox_Tx.Text = gCfg.SysCfgFileRead("发送区", "MasterTx");
+                    MasterMsgEnd.Text = gCfg.SysCfgFileRead("基本配置", "主设备的报尾");
+                    string RxAutoNewDelay = gCfg.SysCfgFileRead("基本配置", "自动换行时间");
+                    if (RxAutoNewDelay == "")
+                        RxAutoNewDelay = TimerRxAutoNewlinePeriod.ToString();
+                    toolStripTextBox自动换行定时器周期.Text = RxAutoNewDelay;
+                    Timer_RxAutoNewLine_Init(Convert.ToInt32(RxAutoNewDelay));
 
+                    TextBox_Tx.Text = gCfg.SysCfgFileRead("发送区", "MasterTx");
+                    richTextBox_Rx.Font = new Font(richTextBox_Rx.Font.FontFamily,
+                        Convert.ToSingle(gCfg.SysCfgFileRead("接收区", "RxShowTextSize")),
+                        richTextBox_Rx.Font.Style);
+
+                    //加载发送列表
                     string path = gCfg.SysCfgFileRead("发送列表", "path");
                     gCfg.TxListPath = path;
                     gCfg.TxListNum = gCfg.TxList_GetNum(path);
                     toolStripTextBox_TxListNum.Text = gCfg.TxListNum.ToString();
+                    
+                    加载超级报文();
                 }
                 catch { }
             }
+            //加载精简发送列表
+            加载简单的发送列表();
         }
 
+        private void richTextBox_Rx_LinkClicked(object sender, LinkClickedEventArgs e)
+        {
+            System.Diagnostics.Process.Start(e.LinkText);
+        }
         private void richTextBox_Rx_ContentsResized(object sender, ContentsResizedEventArgs e)
         {
             richTextBox_Rx.ScrollToCaret();
         }
 
-        private void toolStripComboBox_LoaderFile_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            if (toolStripComboBox_LoaderFile.Enabled)
-            {
-                toolStripComboBox_LoaderFile.Enabled = false;
-                threadBootloaderFile = new Thread(FirmwareFileRead);
-                threadBootloaderFile.IsBackground = true;
-                threadBootloaderFile.Start();
-            }
-        }
 
-        private void BootloaderStatusShow(string text)
+        private void toolStripButton_HEX_Click(object sender, EventArgs e)
         {
-            richTextBox_HexShow.AppendText(text + System.Environment.NewLine);
-            richTextBox_HexShow.ScrollToCaret();
-        }
-
-        private void toolStripButton_TxHEX_MouseDown(object sender, MouseEventArgs e)
-        {
-            if (toolStripButton_TxHEX.Text == "ASCII")
+            ToolStripButton ylbtt = (ToolStripButton)sender;
+            if (ylbtt.Text == "ASCII")
             {
-                toolStripButton_TxHEX.Text = "HEX";
-                toolStripButton_TxHEX.BackColor = Color.LimeGreen;
+                ylbtt.Text = "HEX";
+                ylbtt.BackColor = Color.LimeGreen;
             }
             else
             {
-                toolStripButton_TxHEX.Text = "ASCII";
-                toolStripButton_TxHEX.BackColor = Color.Transparent;
-            }
-        }
-
-        private void toolStripButton_RxHEX_MouseDown(object sender, MouseEventArgs e)
-        {
-            if (toolStripButton_RxHEX.Text == "ASCII")
-            {
-                toolStripButton_RxHEX.Text = "HEX";
-                toolStripButton_RxHEX.BackColor = Color.LimeGreen;
-            }
-            else
-            {
-                toolStripButton_RxHEX.Text = "ASCII";
-                toolStripButton_RxHEX.BackColor = Color.Transparent;
+                ylbtt.Text = "ASCII";
+                ylbtt.BackColor = Color.Transparent;
             }
         }
 
@@ -685,19 +853,70 @@ namespace 串口助手
         {
             richTextBox_Rx.Text = "";
             richTextBox_HexShow.Text = "";
-            HelpShow(Color.Gold, "串口助手V1.0(完全开源)：");
-            HelpShow(Color.Lime, "打包下载链接 https://pan.baidu.com/s/1uoS-Xpm8JSPdkq5KYSMFFA 提取码:g1di");
+            HelpShow(Color.Gold, "串口助手V1.0：");
+            HelpShow(Color.Lime, "GitHub：https://github.com/L231");
+            HelpShow(Color.Lime, "下载链接 https://pan.baidu.com/s/1uoS-Xpm8JSPdkq5KYSMFFA 提取码:g1di");
+            HelpShowNewLine();
+            HelpShowNewLine();
+
+            HelpShow(Color.Gold, "超级报文：");
+            HelpShowNewLine();
+            HelpShow(Color.Gold, "1.概述");
+            HelpShow(Color.Moccasin, "1.1 简介");
+            HelpShow(Color.Moccasin, "    使用主通信端口，在HEX格式下，提取报文中的特殊参数，进行监控");
+            HelpShow(Color.Moccasin, "1.2 结构");
+            HelpShow(Color.Moccasin, "    左侧快速控制栏 + 顶部显示区 + 报文列表 + 右键系统");
+            HelpShow(Color.Moccasin, "1.3 每条报文的结构");
+            HelpShow(Color.Moccasin, "    删除键 + 命名框 + 接收解析框 + 分割线 + 发送复选框 + 发送键");
+            HelpShowNewLine();
+            HelpShow(Color.Gold, "2.用法");
+            HelpShow(Color.Moccasin, "2.1 创建新报文");
+            HelpShow(Color.Moccasin, "    右键空白区，设置发送、接收框个数后创建");
+            HelpShow(Color.Moccasin, "2.2 配置发送、接收框");
+            HelpShow(Color.Moccasin, "    右键文本框，按自身需求配置相关参数，最后完成配置");
+            HelpShow(Color.Moccasin, "2.3 设置报文");
+            HelpShow(Color.Moccasin, "    右键发送键，输入文本即可");
+            HelpShow(Color.Moccasin, "2.4 发送");
+            HelpShow(Color.Moccasin, "    连接主通信端口后，单击发送键，发出报文");
             HelpShowNewLine();
             HelpShowNewLine();
 
             HelpShow(Color.Gold, "多级发送列表：");
             HelpShowNewLine();
             HelpShow(Color.Gold, "1.结构");
-            HelpShow(Color.Moccasin, "监控区 + HEX复选框 + 延时发送设置框 + 发送数据框 + 发送键");
+            HelpShow(Color.Moccasin, "监控区：自动按钮 + 发送状态");
+            HelpShow(Color.Moccasin, "发送列表：HEX复选框 + 延时时间 + 数据框 + 按钮");
             HelpShowNewLine();
-            HelpShow(Color.Gold, "2.用法");
-            HelpShow(Color.Moccasin, "双击“发送数据框”，可将文本添加到“发送键”");
-            HelpShow(Color.Moccasin, "监控区的“自动”键，用于开启/关闭循环发送，未设置延时发送的，自动跳过");
+            HelpShow(Color.Gold, "2.发送按钮命名");
+            HelpShow(Color.Moccasin, "2.1 右键发送按钮，完成命名");
+            HelpShow(Color.Moccasin, "2.2 解锁情况下，双击“数据框”，可将文本移到按钮");
+            HelpShowNewLine();
+            HelpShow(Color.Gold, "3.循环发送");
+            HelpShow(Color.Moccasin, "“自动”键开启，未设置延时时间的，自动跳过");
+            HelpShowNewLine();
+            HelpShow(Color.Gold, "4.报文打包（数据框可多行编辑）");
+            HelpShow(Color.Moccasin, "4.1 结构：报文行、指令行，二者要区分开");
+            HelpShow(Color.Moccasin, "4.2 指令(不区分大小写)：");
+            HelpShow(Color.Moccasin, "    loop ... loopXX");
+            HelpShow(Color.Moccasin, "    delayXX");
+            HelpShow(Color.Moccasin, "    delayXX,loopxx");
+            HelpShow(Color.Moccasin, "4.3 举例，数据框写入下述内容：");
+            HelpShow(Color.Gold,     "    loop");
+            HelpShow(Color.Gold,     "    12 25");
+            HelpShow(Color.Gold,     "    delay100");
+            HelpShow(Color.Gold,     "    12 34 56 78");
+            HelpShow(Color.Gold,     "    delay100,loop2");
+            HelpShow(Color.Gold,     "    loop3");
+            HelpShow(Color.Moccasin, "4.4 说明：");
+            HelpShow(Color.Moccasin, "    delay100，表示延时100ms");
+            HelpShow(Color.Moccasin, "    delay100,loop2，表示上条报文发送2次，每次延时100ms");
+            HelpShow(Color.Moccasin, "    loop 与 loop3，构成一个循环体，循环3次。可嵌套循环");
+            HelpShowNewLine();
+            HelpShow(Color.Gold, "5.多设备通信（共享数据收发区，报文也能打包）");
+            HelpShow(Color.Moccasin, "5.1 注意 HEX按钮、报文结束符的配置");
+            HelpShow(Color.Moccasin, "5.2 用法：设备名$ + 报文（只需在待发送数据前加设备前缀）");
+            HelpShow(Color.Moccasin, "5.3 [设备名]是唯一的，注册时用户自定义");
+            HelpShow(Color.Moccasin, "5.4 举例：万用表$READ? =>获取万用表读值");
             HelpShowNewLine();
             HelpShowNewLine();
 
@@ -759,130 +978,210 @@ namespace 串口助手
             HelpShowNewLine();
             toolStripButton_RecClear.Enabled = true;
             toolStripButton_RecClear.BackColor = Color.Gold;
+
+            HelpShowNewLine();
+            HelpShowNewLine();
+            HelpShow(Color.Gold, "接收显示区右键，解锁控件后输入：help，回车");
+            HelpShowNewLine();
         }
 
 
-        private void toolStripTextBox_Hradix_TextChanged(object sender, EventArgs e)
+        private void TextboxTX_KeyUp(object sender, KeyEventArgs e)
         {
-            int pos = toolStripTextBox_Hradix.SelectionStart;
+            TextBox yltb = sender as TextBox;
+            if (e.KeyCode == Keys.Enter && yltb.Lines.Length <= 2)
+            {
+                try
+                {
+                    int i = 0;
+                    int val = panel3.VerticalScroll.Value;
+                    for (; i < gCfg.TxListNum; i++)
+                    {
+                        if (yltb == gCfg.TextboxTX[i])
+                            break;
+                    }
+                    if (i >= gCfg.TxListNum)
+                        i = gCfg.TxListNum - 1;
+                    yltb.LostFocus -= new EventHandler(TextboxTX_LostFocusClick);
+                    //yltb.GotFocus -= new EventHandler(TextboxTX_GotFocusClick);
+                    yltb.ScrollBars = ScrollBars.Vertical;
+                    tableLayoutPanel1.RowStyles[i].Height = 15 * 10;
+                    tableLayoutPanel1.Size = new Size(tableLayoutPanel1.Size.Width, (20 * (gCfg.TxListNum - 1)) + 15 * 10);
+                    yltb.LostFocus += new EventHandler(TextboxTX_LostFocusClick);
+                    panel3.VerticalScroll.Value = val;
+                }
+                catch { MessageBox.Show("回车异常！", "ERROR"); }
+            }
+        }
+        private void TextboxTX_GotFocusClick(object sender, EventArgs e)
+        {
+            int i = 0;
             try
             {
-                if (toolStripTextBox_Hradix.Text != "")
-                {
-                    toolStripTextBox_Dradix.Text = Convert.ToUInt64(toolStripTextBox_Hradix.Text, 16).ToString();
-                    toolStripTextBox_Dradix.SelectionStart = toolStripTextBox_Dradix.Text.Length;
-                    toolStripTextBox_Hradix.Focus();
-                }
-            }
-            catch
-            {
-                if (toolStripTextBox_Dradix.Text == "")
-                {
-                    toolStripTextBox_Hradix.Text = "";
+                TextBox yltb = sender as TextBox;
+                if (yltb.Lines.Length < 2)
                     return;
+                for (; i < gCfg.TxListNum; i++)
+                {
+                    if (yltb == gCfg.TextboxTX[i])
+                        break;
                 }
-                pos--;
-                toolStripTextBox_Hradix.Text = Convert.ToUInt64(toolStripTextBox_Dradix.Text).ToString("X");
-            }
-            toolStripTextBox_Hradix.SelectionStart = pos;
-        }
+                if (i >= gCfg.TxListNum)
+                    i = gCfg.TxListNum - 1;
+                //yltb.LostFocus -= new EventHandler(TextboxTX_LostFocusClick);
+                yltb.GotFocus -= new EventHandler(TextboxTX_GotFocusClick);
 
-        private void toolStripTextBox_Dradix_TextChanged(object sender, EventArgs e)
+                int length = 10;
+                //if (length >= 10)
+                //{
+                int val = panel3.VerticalScroll.Value;
+                yltb.ScrollBars = ScrollBars.Vertical;
+                panel3.VerticalScroll.Value = val;
+                //    length = 10;
+                //}
+                tableLayoutPanel1.RowStyles[i].Height = 15 * length;
+                tableLayoutPanel1.Size = new Size(tableLayoutPanel1.Size.Width, (20 * (gCfg.TxListNum - 1)) + 15 * length);
+                yltb.LostFocus += new EventHandler(TextboxTX_LostFocusClick);
+            }
+            catch { MessageBox.Show("进入异常！", "ERROR"); }
+        }
+        private void TextboxTX_LostFocusClick(object sender, EventArgs e)
         {
-            int pos = toolStripTextBox_Dradix.SelectionStart;
+            int i = 0;
             try
             {
-                if (toolStripTextBox_Dradix.Text != "")
+                TextBox yltb = sender as TextBox;
+                for (; i < gCfg.TxListNum; i++)
                 {
-                    toolStripTextBox_Hradix.Text = Convert.ToUInt64(toolStripTextBox_Dradix.Text).ToString("X");
-                    toolStripTextBox_Hradix.SelectionStart = toolStripTextBox_Hradix.Text.Length;
-                    toolStripTextBox_Dradix.Focus();
+                    if (yltb == gCfg.TextboxTX[i])
+                        break;
                 }
-            }
-            catch
-            {
-                if (toolStripTextBox_Hradix.Text == "")
-                {
-                    toolStripTextBox_Dradix.Text = "";
+                if (i >= gCfg.TxListNum)
+                    i = gCfg.TxListNum - 1;
+                if (tableLayoutPanel1.RowStyles[i].Height == 20)
                     return;
-                }
-                pos--;
-                toolStripTextBox_Dradix.Text = Convert.ToUInt64(toolStripTextBox_Hradix.Text, 16).ToString();
+                yltb.LostFocus -= new EventHandler(TextboxTX_LostFocusClick);
+                yltb.ScrollBars = ScrollBars.None;
+                tableLayoutPanel1.RowStyles[i].Height = 20;
+                tableLayoutPanel1.Size = new Size(tableLayoutPanel1.Size.Width, (20 * gCfg.TxListNum));
+                yltb.GotFocus += new EventHandler(TextboxTX_GotFocusClick);
             }
-            toolStripTextBox_Dradix.SelectionStart = pos;
+            catch { MessageBox.Show("退出异常！", "ERROR"); }
         }
 
-        public void buttonClick(CheckBox cb, TextBox tb)
+        private int GetTxLoopCnt(string data)
         {
-            if (gComMode != "")
+            try
+            {
+                if (data.IndexOf("LooP", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    //遇到了循环体
+                    if (data.Replace(" ", "").Length == 4)
+                        return 0;
+                    DataTypeConversion dataType = new DataTypeConversion();
+                    return dataType.GetStringNumber(data);
+                }
+            }
+            catch { }
+            return -1;
+        }
+
+        private void Delay(int tick)
+        {
+            System.Diagnostics.Stopwatch stopwatch = new System.Diagnostics.Stopwatch();
+            stopwatch.Start();
+            while (stopwatch.Elapsed.TotalMilliseconds < tick)
+            {
+                //Thread.Sleep(1);
+            }
+            stopwatch.Stop();
+        }
+        private int CommMultipleMsgSend(string[] msg, int posStart, string dataType)
+        {
+            int posEnd = -1;
+            int posLast = posStart;
+            int loop = -1;
+            int cnt = 0;
+            for(int line = posStart; line < msg.Length; line++)
+            {
+                if (msg[line] == "")
+                    continue;
+                //循环次数用完了
+                if (loop == 0)
+                    return posEnd;
+                //循环结束的位置
+                if (posEnd == line)
+                {
+                    loop--;
+                    line = posStart - 1;
+                    continue;
+                }
+                //延时处理、单条报文循环
+                if (msg[line].IndexOf("DelaY", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    DataTypeConversion Conversion = new DataTypeConversion();
+                    int delay = Conversion.GetStringNumber(msg[line]);
+                    int sLoop = 0;
+                    msg[line] = msg[line].ToUpper();
+                    if (msg[line].Contains("LOOP"))
+                    {
+                        string[] delay_loop = msg[line].Split(new string[] { "LOOP" }, StringSplitOptions.RemoveEmptyEntries);
+                        delay = Conversion.GetStringNumber(delay_loop[0]);
+                        if(delay_loop.Length > 1)
+                            sLoop = Conversion.GetStringNumber(delay_loop[1]) - 1;
+                    }
+                    while(sLoop-- > 0)
+                    {
+                        Delay(delay);
+                        CommSingleMsgSend(msg[posLast], dataType);
+                    }
+                    Delay(delay);
+                    continue;
+                }
+
+                cnt = GetTxLoopCnt(msg[line]);
+                //遇到了嵌套的循环体
+                if (cnt == 0)
+                {
+                    line = CommMultipleMsgSend(msg, line + 1, dataType);
+                    continue;
+                }
+                //遇到了循环体的结束语句，包含了循环次数
+                else if (cnt > 0)
+                {
+                    //确保循环体的结束语句合法
+                    if (posStart > 0 && GetTxLoopCnt(msg[posStart - 1]) == 0)
+                    {
+                        posEnd = line;
+                        loop = cnt - 1;
+                        line = posStart - 1;
+                    }
+                    continue;
+                }
+                //发送报文
+                CommSingleMsgSend(msg[line], dataType);
+                posLast = line;
+            }
+            return msg.Length;
+        }
+
+        public void buttonClick(bool flag_hex, string[] txmsg)
+        {
+            if (masterComm.type != "")
             {
                 string temp = "ASCII";
                 string pattern = @"[^0-9]+";
                 Regex rgx = new Regex(pattern);
                 /* HEX发送 */
-                if (cb.Checked)
+                if (flag_hex)
                 {
                     temp = "HEX";
                 }
-                if(tb.Lines.Length == 1)
-                    ComTx(tb.Lines[0], temp);
+                if(txmsg.Length == 1)
+                    CommSingleMsgSend(txmsg[0], temp);
                 else
                 {
-                    for (int line = 0; line < tb.Lines.Length; line++)
-                    {
-                        int loop = 1;
-                        string delay = "100";
-                        //当前行是延时处理，紧跟指令行的延时，在发送指令后已处理
-                        if (tb.Lines[line].IndexOf("DelaY", StringComparison.OrdinalIgnoreCase) >= 0)
-                        {
-                            //上一行也是延时处理，则当前行的延时要处理了
-                            if (line > 0 && tb.Lines[line - 1].IndexOf("DelaY", StringComparison.OrdinalIgnoreCase) >= 0)
-                            {
-                                Thread.Sleep(Convert.ToInt32(rgx.Replace(tb.Lines[line], "")));
-                            }
-                            continue;
-                        }
-                        if (tb.Lines[line] == "")
-                            continue;
-                        if (line + 1 < tb.Lines.Length)
-                        {
-                            if (tb.Lines[line + 1].IndexOf("DelaY", StringComparison.OrdinalIgnoreCase) >= 0)
-                            {
-                                delay = tb.Lines[line + 1];
-                                if (delay.Length > 5)
-                                {
-                                    delay = delay.Substring(5, delay.Length - 5).ToUpper();
-                                    if (delay.IndexOf("LooP", StringComparison.OrdinalIgnoreCase) >= 0)
-                                    {
-                                        int pos = 1;
-                                        string[] delay_loop = delay.Split(new string[] { "LOOP" }, StringSplitOptions.RemoveEmptyEntries);
-                                        delay = delay_loop[0];
-                                        if (delay_loop.Length == 1)
-                                        {
-                                            delay = "100";
-                                            pos = 0;
-                                        }
-                                        if (delay_loop[pos].Length > 0)
-                                        {
-                                            loop = Convert.ToInt32(rgx.Replace(delay_loop[pos], ""));
-                                        }
-                                        if (loop < 1)
-                                            loop = 1;
-                                    }
-                                }
-                                delay = rgx.Replace(delay, "");
-                                if (delay == "")
-                                    delay = "100";
-                            }
-                        }
-
-                        while (loop-- > 0)
-                        {
-                            ComTx(tb.Lines[line], temp);
-                            //发送完指令后，取下一行的延时时间，进行延时
-                            Thread.Sleep(Convert.ToInt32(delay));
-                        }
-                    }
+                    CommMultipleMsgSend(txmsg, 0, temp);
                 }
                 if (toolStripButton_RecClear.Enabled == false)
                 {
@@ -891,79 +1190,23 @@ namespace 串口助手
                 }
             }
         }
-        private void TextboxTX_KeyUp(object sender, KeyEventArgs e)
-        {
-            if (e.KeyCode == Keys.Enter)
-            {
-                TextBox yltb = sender as TextBox;
-                if (yltb.Lines.Length > 10)
-                    return;
-                int i = 0;
-                for (; i < gCfg.TxListNum; i++)
-                {
-                    if (yltb == gCfg.TextboxTX[i])
-                        break;
-                }
-                if (i >= gCfg.TxListNum)
-                    i = gCfg.TxListNum - 1;
-                yltb.LostFocus -= new EventHandler(TextboxTX_LostFocusClick);
-                //yltb.GotFocus -= new EventHandler(TextboxTX_GotFocusClick);
-                if (yltb.Lines.Length == 10)
-                    yltb.ScrollBars = ScrollBars.Vertical;
-                tableLayoutPanel1.RowStyles[i].Height = 15 * (yltb.Lines.Length);
-                tableLayoutPanel1.Size = new Size(tableLayoutPanel1.Size.Width, (20 * gCfg.TxListNum) + 20 * (yltb.Lines.Length) + 2);
-                yltb.LostFocus += new EventHandler(TextboxTX_LostFocusClick);
-            }
-        }
-        private void TextboxTX_GotFocusClick(object sender, EventArgs e)
-        {
-            int i = 0;
-            TextBox yltb = sender as TextBox;
-            if (yltb.Lines.Length <= 1)
-                return;
-            for (; i < gCfg.TxListNum; i++)
-            {
-                if (yltb == gCfg.TextboxTX[i])
-                    break;
-            }
-            if (i >= gCfg.TxListNum)
-                i = gCfg.TxListNum - 1;
-            //yltb.LostFocus -= new EventHandler(TextboxTX_LostFocusClick);
-            yltb.GotFocus -= new EventHandler(TextboxTX_GotFocusClick);
-            
-            int length = yltb.Lines.Length;
-            if (length >= 10)
-            {
-                yltb.ScrollBars = ScrollBars.Vertical;
-                length = 10;
-            }
-            tableLayoutPanel1.RowStyles[i].Height = 15 * length;
-            tableLayoutPanel1.Size = new Size(tableLayoutPanel1.Size.Width, (20 * gCfg.TxListNum) + 15 * length);
-            yltb.LostFocus += new EventHandler(TextboxTX_LostFocusClick);
-        }
-        private void TextboxTX_LostFocusClick(object sender, EventArgs e)
-        {
-            int i = 0;
-            TextBox yltb = sender as TextBox;
-            for (; i < gCfg.TxListNum; i++)
-            {
-                if (yltb == gCfg.TextboxTX[i])
-                    break;
-            }
-            if (i >= gCfg.TxListNum)
-                i = gCfg.TxListNum - 1;
-            if (tableLayoutPanel1.RowStyles[i].Height == 20)
-                return;
-            yltb.LostFocus -= new EventHandler(TextboxTX_LostFocusClick);
-            yltb.ScrollBars = ScrollBars.None;
-            tableLayoutPanel1.RowStyles[i].Height = 20;
-            tableLayoutPanel1.Size = new Size(tableLayoutPanel1.Size.Width, (20 * gCfg.TxListNum) + 2);
-            yltb.GotFocus += new EventHandler(TextboxTX_GotFocusClick);
-        }
         private void TableTxSingle_Click(object pos)
         {
+            bool flagHEX = false;
+            string[] TxMsg = null;
             int i = (int)pos;
-            buttonClick(gCfg.Checkbox[i], gCfg.TextboxTX[i]);
+            if (tabControl_TxList.SelectedTab == tabPage_TxList)
+            {
+                flagHEX = gCfg.Checkbox[i].Checked;
+                TxMsg = gCfg.TextboxTX[i].Lines;
+            }
+            else
+            {
+                if (txListSimple_List[i].DataType == 0)
+                    flagHEX = true;
+                TxMsg = txListSimple_List[i].Msg;
+            }
+            buttonClick(flagHEX, TxMsg);
             threadTableTx_RunFlag = false;
             threadTableTx.Abort();
         }
@@ -973,51 +1216,59 @@ namespace 串口助手
                 return;
             int i = 0;
             Button ylbtt = sender as Button;
-            for (; i < gCfg.TxListNum; i++)
+            if (tabControl_TxList.SelectedTab == tabPage_TxList)
             {
-                if (ylbtt == gCfg.Button[i])
-                    break;
+                for (; i < gCfg.TxListNum; i++)
+                {
+                    if (ylbtt == gCfg.Button[i])
+                        break;
+                }
             }
+            else
+            {
+                //提取当前按钮的数据
+                i = buttonListSimpleNumber_Get(ylbtt);
+                txListSimple_DataLoad(i);
+                if (txListSimple_List[i].Msg == null)
+                    return;
+            }
+            
             threadTableTx = new Thread(TableTxSingle_Click);
             threadTableTx.IsBackground = true;
             threadTableTx_RunFlag = true;
             threadTableTx.Start(i);
         }
 
-        bool threadTableTx_RunFlag = false;
-        Thread threadTableTx = null;
         private void TableTx_Click()
         {
             toolStripLabel_TableTx.Text = "空闲，未设置延时发送";
             while (true)
             {
+                if (gBootloaderFlag)
+                    goto THREAD_TABLE_TX_ABORT;
                 for (int i = 0; i < gCfg.TxListNum; i++)
                 {
-                    if (gBootloaderFlag)
-                        goto THREAD_TABLE_TX_ABORT;
-                    string time = gCfg.TextboxTimer[i].Text;
-                    if (time != "")
+                    if (gCfg.TextboxTimer[i].Text.Length == 0)
+                        continue;
+                    int delay = 0;
+                    try
                     {
-                        int delay = 0;
-                        try
-                        {
-                            delay = Convert.ToInt32(time);
-                        }
-                        catch
-                        {
-                            gCfg.TextboxTimer[i].Text = "";
-                            continue;
-                        }
-                        try
-                        {
-                            toolStripLabel_TableTx.Text = "延时" + delay + "ms, TX: " + gCfg.Button[i].Text;
-                            Thread.Sleep(delay);
-                            buttonClick(gCfg.Checkbox[i], gCfg.TextboxTX[i]);
-                        }
-                        catch
-                        {
-                            goto THREAD_TABLE_TX_ABORT;
-                        }
+                        delay = Convert.ToInt32(gCfg.TextboxTimer[i].Text);
+                    }
+                    catch
+                    {
+                        gCfg.TextboxTimer[i].Text = "";
+                        continue;
+                    }
+                    try
+                    {
+                        toolStripLabel_TableTx.Text = "延时" + delay + "ms, TX: " + gCfg.Button[i].Text;
+                        Delay(delay);
+                        buttonClick(gCfg.Checkbox[i].Checked, gCfg.TextboxTX[i].Lines);
+                    }
+                    catch
+                    {
+                        goto THREAD_TABLE_TX_ABORT;
                     }
                 }
             }
@@ -1026,6 +1277,7 @@ namespace 串口助手
             toolStripButton_TableTx.BackColor = Color.Lime;
             //button_Tx.Enabled = true;
             checkBox_TimSend.Enabled = true;
+            threadTableTx_RunFlag = false;
             threadTableTx.Abort();
         }
         private void toolStripButton_TableTx_Click(object sender, EventArgs e)
@@ -1073,7 +1325,6 @@ namespace 串口助手
             this.Opacity = (100 - trackBar1.Value) / 100.0;
         }
 
-        bool gTxShowFlag = false;
         private void toolStripLabel1_Click(object sender, EventArgs e)
         {
             gTxShowFlag = !gTxShowFlag;
@@ -1107,44 +1358,13 @@ namespace 串口助手
             richTextBox_Rx.SelectionColor = Color.White;
             richTextBox_Rx.AppendText(System.Environment.NewLine);
         }
-        string gLogFileName = null;
-        private void toolStripButton_log_Click(object sender, EventArgs e)
+        private void TxListHelp_MouseHover(object sender, EventArgs e)
         {
-            if (toolStripButton_log.ToolTipText == "记录log")
-            {
-                SaveFileDialog log = new SaveFileDialog();
-                //log.InitialDirectory = "D:\\"; //默认路径
-                log.Filter = "log|*.log|文本|*.txt";
-                log.FileName = DateTime.Now.ToString("yyyy-MM-dd-HH-mm-s");
-                if (log.ShowDialog() == DialogResult.OK)
-                {
-                    toolStripButton_log.ToolTipText = "关闭log";
-                    toolStripButton_log.BackColor = Color.LimeGreen;
-                    gLogFileName = log.FileName;
-                    StreamWriter stream = new StreamWriter(gLogFileName);
-                    stream.WriteLine("串口助手LOG");
-                    stream.WriteLine(DateTime.Now.ToString("yyyy-MM-dd-HH-mm-s"));
-                    stream.WriteLine("******************************");
-                    stream.Flush();
-                    stream.Close();
-                }
-            }
-            else
-            {
-                toolStripButton_log.ToolTipText = "记录log";
-                toolStripButton_log.BackColor = Color.Transparent;
-                gLogFileName = null;
-            }
-        }
-
-        public void LogWriteMsg(string msg)
-        {
-            if (gLogFileName == null)
-                return;
-            StreamWriter stream = new StreamWriter(gLogFileName, true);
-            stream.WriteLine(msg);
-            stream.Flush();
-            stream.Close();
+            Point point = new Point(0, 50);
+            toolTip_TxList.Show("[HEX发送]+[延时框]+[报文编辑框]",
+                (IWin32Window)sender,
+                point,
+                800);
         }
 
         private void 加载发送列表ToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1154,7 +1374,9 @@ namespace 串口助手
             TxListEventReg();
             splitContainer1.Size = new Size(246, (20 * gCfg.TxListNum) + 200);
             toolStripTextBox_TxListNum.Text = gCfg.TxListNum.ToString();
-            //gCfg.TxListFirstLoad();
+            加载简单的发送列表();
+            
+            加载超级报文();
         }
 
         private void 另存为ToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1170,5 +1392,130 @@ namespace 串口助手
                 splitContainer1.Size = new Size(246, (20 * gCfg.TxListNum) + 200);
             }
         }
+
+        private void toolStripComboBox_SerialPort_DropDown(object sender, EventArgs e)
+        {
+            SerialPortNumberUpadta(toolStripComboBox_SerialPort);
+        }
+
+        private void toolStripButton4_Click(object sender, EventArgs e)
+        {
+            ChannelListCreate();
+        }
+
+        [DllImport("User32")]
+        public extern static void SetCursorPos(int x, int y);
+        [DllImport("User32")]
+        public extern static bool GetCursorPos(ref Point point);
+
+
+        /// <summary>
+        /// 不同数据类型的转换
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void toolStripComboBox_Convert_TextUpdate(object sender, EventArgs e)
+        {
+            if (toolStripComboBox_Convert.Text == "")
+                return;
+            int pos = toolStripComboBox_Convert.SelectionStart;
+            if (toolStripComboBox_Convert.DroppedDown == false)
+            {
+                toolStripComboBox_Convert.Items.Clear();
+                toolStripComboBox_Convert.SelectionStart = pos;
+                string str = "";
+                toolStripComboBox_Convert.Items.Add(str);
+                toolStripComboBox_Convert.Items.Add(str);
+                toolStripComboBox_Convert.Items.Add(str);
+                toolStripComboBox_Convert.Items.Add(str);
+                toolStripComboBox_Convert.Items.Add(str);
+                toolStripComboBox_Convert.DroppedDown = true;
+                this.Cursor = Cursor;
+                Point point = new Point();
+                GetCursorPos(ref point);
+                SetCursorPos(point.X, point.Y - 35);
+            }
+            UInt32 u32 = 0;
+            toolStripComboBox_Convert.Text = toolStripComboBox_Convert.Text.ToUpper();
+            toolStripComboBox_Convert.SelectionStart = pos;
+            try
+            {
+                if (toolStripComboBox_Convert.Text.Length == 1 &&
+                    (toolStripComboBox_Convert.Text[0] == 'X' ||
+                    toolStripComboBox_Convert.Text[0] == 'D' ||
+                    toolStripComboBox_Convert.Text[0] == 'S'))
+                    return;
+                switch (toolStripComboBox_Convert.Text[0])
+                {
+                    case 'X': //16进制输入
+                        u32 = Convert.ToUInt32(toolStripComboBox_Convert.Text.Remove(0, 1), 16);
+                        break;
+                    case 'S': //浮点数输入
+                        float f = float.Parse(toolStripComboBox_Convert.Text.Remove(0, 1));
+                        byte[] fByte = BitConverter.GetBytes(f);
+                        u32 = BitConverter.ToUInt32(fByte, 0);
+                        break;
+                    case 'D': //整型输入
+                        u32 = Convert.ToUInt32(toolStripComboBox_Convert.Text.Remove(0, 1));
+                        break;
+                    default: //默认整型输入
+                        u32 = Convert.ToUInt32(toolStripComboBox_Convert.Text);
+                        break;
+                }
+                string b = Convert.ToString(u32, 2).PadLeft(1);
+                for (int cnt = b.Length - 4; cnt > 0; cnt -= 4)
+                {
+                    b = b.Insert(cnt, ",");
+                }
+                //显示二进制
+                toolStripComboBox_Convert.Items[0] = b;
+                //显示u32
+                toolStripComboBox_Convert.Items[1] = u32.ToString();
+                //显示int32
+                toolStripComboBox_Convert.Items[2] = "[int] " + ((int)u32).ToString();
+                //16进制显示
+                toolStripComboBox_Convert.Items[3] = "0x" + u32.ToString("X");
+                //浮点数显示
+                toolStripComboBox_Convert.Items[4] = "[float] " + (BitConverter.ToSingle(BitConverter.GetBytes(u32), 0)).ToString();
+            }
+            catch
+            {
+                if(pos > 0)
+                {
+                    toolStripComboBox_Convert.Text = toolStripComboBox_Convert.Text.Remove(pos - 1, 1);
+                    toolStripComboBox_Convert.SelectionStart = pos - 1;
+                }
+            }
+        }
+
+
+        /// <summary>
+        /// 快速创建超级报文，按钮触发右键菜单
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void toolStripButton2_Click(object sender, EventArgs e)
+        {
+            contextMenu.CreateSuperMsgMenu.Show(Control.MousePosition);
+        }
+        private void CreateSuperMsg_Handler(int rx_textbox, int tx_textbox)
+        {
+            SuperMsg superMsg = new SuperMsg();
+            superMsg.formMain = this;
+            superMsg.SuperMsgInit(rx_textbox, tx_textbox);
+            flowLayoutPanel_SuperMsg.Controls.Add(superMsg.panelMsg);
+            //superMsg.
+        }
+
+        public void SuperMsgListReg(object obj)
+        {
+            SuperMsgList.Add(obj);
+        }
+        public void SuperMsgListDelete(object obj)
+        {
+            SuperMsgList.Remove(obj);
+        }
+
+
     }
 }
