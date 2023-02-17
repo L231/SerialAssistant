@@ -250,7 +250,7 @@ namespace 串口助手
             s += ("  0x" + BitConverter.ToString(FirmwareBuf.Skip(0).Take(FirmwareSize).ToArray()).Replace("-", ", 0x"));
             for (int pos = startpos + 97; pos < s.Length; pos += (99))
                 s = s.Insert(pos, System.Environment.NewLine + " ");
-            s += (System.Environment.NewLine + "}" + System.Environment.NewLine + System.Environment.NewLine);
+            s += (System.Environment.NewLine + "};" + System.Environment.NewLine + System.Environment.NewLine);
             StreamWriter stream = new StreamWriter(path);
             stream.Write(s);
             stream.Flush();

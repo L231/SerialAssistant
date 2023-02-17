@@ -72,8 +72,10 @@
     <Reference Include="PresentationFramework" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.DirectoryServices" />
     <Reference Include="System.Management" />
     <Reference Include="System.Messaging" />
+    <Reference Include="System.Windows.Forms.DataVisualization" />
     <Reference Include="System.Xaml" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -116,6 +118,19 @@
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RealTimeCurve.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="RealTimeCurve.Designer.cs">
+      <DependentUpon>RealTimeCurve.cs</DependentUpon>
+    </Compile>
+    <Compile Include="RealTimeCurveEditor.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="RealTimeCurveEditor.Designer.cs">
+      <DependentUpon>RealTimeCurveEditor.cs</DependentUpon>
+    </Compile>
+    <Compile Include="RealTimeCurve_Channel.cs" />
     <Compile Include="RxShow.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -135,6 +150,12 @@
       <Generator>ResXFileCodeGenerator</Generator>
       <SubType>Designer</SubType>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <EmbeddedResource Include="RealTimeCurve.resx">
+      <DependentUpon>RealTimeCurve.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="RealTimeCurveEditor.resx">
+      <DependentUpon>RealTimeCurveEditor.cs</DependentUpon>
     </EmbeddedResource>
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
@@ -176,6 +197,7 @@
     <None Include="image\设置.png" />
     <None Include="image\置顶.png" />
     <None Include="image\log.png" />
+    <None Include="image\MSB.png" />
     <Content Include="image\删除.png" />
     <Content Include="image\新建.png" />
     <Content Include="图标.ico" />

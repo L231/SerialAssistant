@@ -20,6 +20,28 @@ namespace 串口助手
             catch { }
             return 0;
         }
+        public bool GetStringSingle(string str, ref float value)
+        {
+            //str = Regex.Replace(str, @"[^\d.\d]", " ");
+            Regex r = new Regex(@"\d*\.\d*|0\.\d*[1-9]\d*$");
+            string[] s = new string[] { r.Match(str).Value, r.Replace(str, "") };
+            if(s[0] != "" && s[0] != ".")
+            {
+                value = Convert.ToSingle(s[0]);
+                return true;
+            }
+            else if(s.Length > 1 && s[1] != "")
+            {
+                Regex regex = new Regex("[0-9]+", RegexOptions.IgnoreCase | RegexOptions.Singleline, TimeSpan.FromSeconds(2));
+                MatchCollection mc = regex.Matches(s[1]);
+                if(mc.Count > 0)
+                {
+                    value = Convert.ToSingle(mc[0].Groups[0].Value);
+                    return true;
+                }
+            }
+            return false;
+        }
 
         public byte GetByteCheckSum(byte[] data, int length)
         {

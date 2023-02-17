@@ -37,6 +37,8 @@ namespace 串口助手
         CommLog commLog = new CommLog();
         public SuperMsg SuperMsgCurrent = null;
         List<object> SuperMsgList = new List<object>();
+        RealTimeCurve realTimeCurve = new RealTimeCurve();
+
 
         private void Timer_RxAutoNewline_OutHandle(object sender, EventArgs e)
         {
@@ -74,7 +76,10 @@ namespace 串口助手
                 {
                     sockConnection.ReceiveTimeout = 100;
                     len = sockConnection.Receive(buffMsgRec);
-                    if (数据接收_显示_解析_输出日志(sender, "tcp", buffMsgRec, len) == false)
+                    if (数据接收_显示_解析_输出日志(sender,
+                        "tcp",
+                        buffMsgRec.Skip(0).Take(len).ToArray(),
+                        len) == false)
                         continue;
                 }
                 catch { }
@@ -96,6 +101,11 @@ namespace 串口助手
             masterComm.type = "";
             toolStripButton_Master.Text = "开启";
             toolStripTextBox自动换行定时器周期.LostFocus += new EventHandler(toolStripTextBox自动换行定时器周期_LostFocusClick);
+
+            realTimeCurve.TopLevel = false;
+            realTimeCurve.Dock = DockStyle.Fill;
+            tabPage5.Controls.Add(realTimeCurve);
+            realTimeCurve.Show();
 
             加载设定();
             gCfg.TableTxCreate(tableLayoutPanel1, tableLayoutPanel2);
@@ -314,9 +324,10 @@ namespace 串口助手
             try
             {
                 System.IO.Ports.SerialPort uart = (System.IO.Ports.SerialPort)sender;
-                length = uart.BytesToRead;
+                
                 do
                 {
+                    length = uart.BytesToRead;
                     Delay(1);
                 } while (length != uart.BytesToRead);
                 //预留一个字节，为后面解决中文乱码做准备
@@ -1516,6 +1527,16 @@ namespace 串口助手
             SuperMsgList.Remove(obj);
         }
 
+        List<int> splineList = new List<int>();
+        Random random = new Random();
+        private void timer1_Tick(object sender, EventArgs e)
+        {
+            //realTimeCurve.RT_Curve_WriteData(0, random.Next(0, 199));
+        }
 
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            System.Environment.Exit(0);
+        }
     }
 }

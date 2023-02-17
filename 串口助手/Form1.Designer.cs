@@ -133,10 +133,12 @@ namespace 串口助手
             this.flowLayoutPanel_Channel = new System.Windows.Forms.FlowLayoutPanel();
             this.ChannelList_toolStrip0 = new System.Windows.Forms.ToolStrip();
             this.toolStripButton4 = new System.Windows.Forms.ToolStripButton();
+            this.tabPage5 = new System.Windows.Forms.TabPage();
             this.openFileDialog_Download = new System.Windows.Forms.OpenFileDialog();
             this.saveFileDialog_Firmware = new System.Windows.Forms.SaveFileDialog();
             this.trackBar1 = new System.Windows.Forms.TrackBar();
             this.toolTip_TxList = new System.Windows.Forms.ToolTip(this.components);
+            this.timer1 = new System.Windows.Forms.Timer(this.components);
             this.toolStrip_LeftTop.SuspendLayout();
             this.toolStrip_Left.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer_Master)).BeginInit();
@@ -751,7 +753,7 @@ namespace 串口助手
             // 
             this.splitContainer1.Panel2.Controls.Add(this.tableLayoutPanel2);
             this.splitContainer1.Size = new System.Drawing.Size(238, 1351);
-            this.splitContainer1.SplitterDistance = 141;
+            this.splitContainer1.SplitterDistance = 97;
             this.splitContainer1.SplitterIncrement = 4;
             this.splitContainer1.SplitterWidth = 8;
             this.splitContainer1.TabIndex = 0;
@@ -869,7 +871,7 @@ namespace 串口助手
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
-            this.tableLayoutPanel1.Size = new System.Drawing.Size(141, 1320);
+            this.tableLayoutPanel1.Size = new System.Drawing.Size(97, 1320);
             this.tableLayoutPanel1.TabIndex = 0;
             // 
             // tableLayoutPanel2
@@ -980,7 +982,7 @@ namespace 串口助手
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
-            this.tableLayoutPanel2.Size = new System.Drawing.Size(89, 1320);
+            this.tableLayoutPanel2.Size = new System.Drawing.Size(133, 1320);
             this.tableLayoutPanel2.TabIndex = 0;
             // 
             // tabPage_TxListSimple
@@ -1204,6 +1206,7 @@ namespace 串口助手
             | System.Windows.Forms.AnchorStyles.Right)));
             this.tabControl1.Controls.Add(this.tabPage1);
             this.tabControl1.Controls.Add(this.tabPage4);
+            this.tabControl1.Controls.Add(this.tabPage5);
             this.tabControl1.Controls.Add(this.tabPage2);
             this.tabControl1.Controls.Add(this.tabPage3);
             this.tabControl1.Location = new System.Drawing.Point(0, 28);
@@ -1234,7 +1237,7 @@ namespace 串口助手
             this.tabPage4.Name = "tabPage4";
             this.tabPage4.Size = new System.Drawing.Size(756, 430);
             this.tabPage4.TabIndex = 3;
-            this.tabPage4.Text = "超级助手";
+            this.tabPage4.Text = "超级报文";
             this.tabPage4.UseVisualStyleBackColor = true;
             // 
             // splitContainer2
@@ -1293,7 +1296,7 @@ namespace 串口助手
             // 
             this.toolStripButton2.AutoSize = false;
             this.toolStripButton2.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
-            this.toolStripButton2.Image = ((System.Drawing.Image)(resources.GetObject("toolStripButton2.Image")));
+            this.toolStripButton2.Image = global::串口助手.Properties.Resources.新建;
             this.toolStripButton2.ImageTransparentColor = System.Drawing.Color.Magenta;
             this.toolStripButton2.Name = "toolStripButton2";
             this.toolStripButton2.Size = new System.Drawing.Size(29, 29);
@@ -1632,12 +1635,21 @@ namespace 串口助手
             // 
             this.toolStripButton4.AutoSize = false;
             this.toolStripButton4.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
-            this.toolStripButton4.Image = ((System.Drawing.Image)(resources.GetObject("toolStripButton4.Image")));
+            this.toolStripButton4.Image = global::串口助手.Properties.Resources.新建;
             this.toolStripButton4.ImageTransparentColor = System.Drawing.Color.Magenta;
             this.toolStripButton4.Name = "toolStripButton4";
             this.toolStripButton4.Size = new System.Drawing.Size(30, 30);
             this.toolStripButton4.Text = "新建通道";
             this.toolStripButton4.Click += new System.EventHandler(this.toolStripButton4_Click);
+            // 
+            // tabPage5
+            // 
+            this.tabPage5.Location = new System.Drawing.Point(4, 22);
+            this.tabPage5.Name = "tabPage5";
+            this.tabPage5.Size = new System.Drawing.Size(756, 430);
+            this.tabPage5.TabIndex = 4;
+            this.tabPage5.Text = "动态曲线";
+            this.tabPage5.UseVisualStyleBackColor = true;
             // 
             // openFileDialog_Download
             // 
@@ -1663,6 +1675,12 @@ namespace 串口助手
             this.trackBar1.MouseLeave += new System.EventHandler(this.trackBar1_MouseLeave);
             this.trackBar1.MouseMove += new System.Windows.Forms.MouseEventHandler(this.trackBar1_MouseMove);
             // 
+            // timer1
+            // 
+            this.timer1.Enabled = true;
+            this.timer1.Interval = 50;
+            this.timer1.Tick += new System.EventHandler(this.timer1_Tick);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
@@ -1675,6 +1693,7 @@ namespace 串口助手
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "Form1";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.Form1_FormClosing);
             this.Load += new System.EventHandler(this.Form1_Load);
             this.toolStrip_LeftTop.ResumeLayout(false);
             this.toolStrip_LeftTop.PerformLayout();
@@ -1757,11 +1776,6 @@ namespace 串口助手
         private System.Windows.Forms.ToolStripButton toolStripButton_RxHEX;
         private System.Windows.Forms.ToolStripButton toolStripButton_RxAutoNewline;
         private System.Windows.Forms.ToolStripButton toolStripButton_Timestamp;
-        private System.Windows.Forms.ToolStripPanel BottomToolStripPanel;
-        private System.Windows.Forms.ToolStripPanel TopToolStripPanel;
-        private System.Windows.Forms.ToolStripPanel RightToolStripPanel;
-        private System.Windows.Forms.ToolStripPanel LeftToolStripPanel;
-        private System.Windows.Forms.ToolStripContentPanel ContentPanel;
         private System.Windows.Forms.SplitContainer splitContainer_Master;
         private System.Windows.Forms.CheckBox checkBox_TimSend;
         private System.Windows.Forms.NumericUpDown NumUpDown_TimSend;
@@ -1847,6 +1861,13 @@ namespace 串口助手
         private System.Windows.Forms.Button buttonTxListNew;
         private System.Windows.Forms.Button buttonTxListDel;
         private System.Windows.Forms.ToolStripTextBox toolStripTextBox自动换行定时器周期;
+        private System.Windows.Forms.TabPage tabPage5;
+        private System.Windows.Forms.Timer timer1;
+        private System.Windows.Forms.ToolStripPanel BottomToolStripPanel;
+        private System.Windows.Forms.ToolStripPanel TopToolStripPanel;
+        private System.Windows.Forms.ToolStripPanel RightToolStripPanel;
+        private System.Windows.Forms.ToolStripPanel LeftToolStripPanel;
+        private System.Windows.Forms.ToolStripContentPanel ContentPanel;
     }
 }
 
