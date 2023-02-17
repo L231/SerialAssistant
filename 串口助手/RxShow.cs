@@ -112,12 +112,13 @@ namespace 串口助手
                     length = 处理中文断帧乱码问题(CurrentDevice, ref rx_buf, length);
                 rxData = rx_buf;
                 rxDataLength = length;
-                if(threadRxDataHandle == null)
-                {
-                    threadRxDataHandle = new Thread(RxDataHandle_Thread);
-                    threadRxDataHandle.Start(CurrentDevice);
-                }
-                threadRxDataHandle_Supend.Set();
+                RxDataHandle_Thread(null);
+                //if(threadRxDataHandle == null)
+                //{
+                //    threadRxDataHandle = new Thread(RxDataHandle_Thread);
+                //    threadRxDataHandle.Start(CurrentDevice);
+                //}
+                //threadRxDataHandle_Supend.Set();
             }
             catch { }
             return true;
@@ -125,8 +126,12 @@ namespace 串口助手
 
         private void RxDataHandle_Thread(object dev)
         {
-            while(true)
+            //while(true)
             {
+                byte[] tempRxData = rxData;
+                int tempLength = rxDataLength;
+                string tmepType = CurrentDevice.hex;
+                string tmepName = CurrentDevice.name;
                 string MsgHead = "";
                 string LogMsgHead = "";
                 if (CurrentDevice.name != "S0")
@@ -134,8 +139,8 @@ namespace 串口助手
                 try
                 {
                     DataTypeConversion dataType = new DataTypeConversion();
-                    string str = dataType.ByteToString(CurrentDevice.hex, rxData, rxDataLength);
-                    if (CurrentDevice.hex != "ASCII")
+                    string str = dataType.ByteToString(tmepType, tempRxData, tempLength);
+                    if (tmepType != "ASCII")
                         str += " ";
                     /* 处理时间戳 */
                     if (toolStripButton_Timestamp.Text == "ON")
@@ -149,12 +154,12 @@ namespace 串口助手
                     //显示接收的数据
                     WriteRxMsg(MsgHead + str);
                     commLog.LogWriteMsg(LogMsgHead + str);
-                    if (CurrentDevice.hex != "ASCII")
+                    if (tmepType != "ASCII")
                     {
-                        realTimeCurve.RT_Curve_WriteData(rxData, rxDataLength);
-                        MsgLookup_16To10(rxData, rxDataLength, MsgHead);
+                        realTimeCurve.RT_Curve_WriteData(rxData, tempLength);
+                        MsgLookup_16To10(rxData, tempLength, MsgHead);
                     }
-                    if (SuperMsgCurrent != null && CurrentDevice.name == "S0")
+                    if (SuperMsgCurrent != null && tmepName == "S0")
                     {
                         textBox_SuperMsgRxShow.AppendText(MsgHead + str);
                         SuperMsgCurrent.RxMsg_Handler(rxData);
@@ -162,7 +167,7 @@ namespace 串口助手
                     }
                 }
                 catch { }
-                gRxNum += rxDataLength;
+                gRxNum += tempLength;
                 Label_Status.Text = "OPEN    TX:" + gTxNum + "    RX:" + gRxNum;
 
                 /* 自动换行打开了，此时开启它的定时器 */
@@ -175,8 +180,8 @@ namespace 串口助手
                     toolStripButton_RecClear.Enabled = true;
                     toolStripButton_RecClear.BackColor = Color.Gold;
                 }
-                threadRxDataHandle_Supend.Reset();
-                threadRxDataHandle_Supend.WaitOne();
+                //threadRxDataHandle_Supend.Reset();
+                //threadRxDataHandle_Supend.WaitOne();
             }
         }
     }
