@@ -328,6 +328,8 @@ namespace 串口助手
                 do
                 {
                     length = uart.BytesToRead;
+                    if (length >= 1024)  //强制分包
+                        break;
                     Delay(1);
                 } while (length != uart.BytesToRead);
                 //预留一个字节，为后面解决中文乱码做准备
