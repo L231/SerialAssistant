@@ -14,7 +14,7 @@ namespace 串口助手
         private int rxDataLength;
         private byte[] rxData;
         private MultiCommunication_t CurrentDevice = new MultiCommunication_t();
-        private Thread threadRxDataHandle;
+        //private Thread threadRxDataHandle;
         private AutoResetEvent threadRxDataHandle_Supend = new AutoResetEvent(false);
 
 
@@ -64,7 +64,7 @@ namespace 串口助手
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private bool 数据接收_显示_解析_输出日志(object sender, string type, byte[] rx_buf, int length)
+        private bool 数据接收_显示_解析_输出日志(object sender, string type, ref byte[] rx_buf, int length)
         {
             if (length == 0)
                 return false;

@@ -65,6 +65,7 @@ namespace 串口助手
             Socket sockConnection = sender as Socket;
             byte[] buffMsgRec = new byte[1024 * 1024];
             int len = 0;
+            sockConnection.ReceiveTimeout = 500;
             while (true)
             {
                 if (gBootloaderFlag == true)
@@ -74,11 +75,10 @@ namespace 串口助手
                 }
                 try
                 {
-                    sockConnection.ReceiveTimeout = 100;
                     len = sockConnection.Receive(buffMsgRec);
                     if (数据接收_显示_解析_输出日志(sender,
                         "tcp",
-                        buffMsgRec.Skip(0).Take(len).ToArray(),
+                        ref buffMsgRec,
                         len) == false)
                         continue;
                 }
@@ -319,27 +319,27 @@ namespace 串口助手
             }
             return true;
         }
-        private byte[] 串口接收数据(object sender, ref int length)
+        private int 串口接收数据(object sender, ref byte[] data)
         {
             try
             {
                 System.IO.Ports.SerialPort uart = (System.IO.Ports.SerialPort)sender;
-                
-                do
+                int length = 0;
+                while (length != uart.BytesToRead)
                 {
                     length = uart.BytesToRead;
+                    Delay(1);
                     if (length >= 1024)  //强制分包
                         break;
-                    Delay(1);
-                } while (length != uart.BytesToRead);
+                }
                 //预留一个字节，为后面解决中文乱码做准备
-                byte[] buf = new byte[length + 1];
-                uart.Read(buf, 0, length);
-                return buf;
+                data = new byte[length + 1];
+                uart.Read(data, 0, length);
+                return length;
             }
             catch
             { }
-            return null;
+            return 0;
         }
         private void CommMasterButtonSend()
         {
@@ -460,15 +460,15 @@ namespace 串口助手
             /* 选项卡0，普通的通信助手收发 */
             if (gBootloaderFlag == true)
                 return;
-            int length = 0;
             /* 使用了超级报文，稍微等待，尽可能确保一次收完 */
             if (SuperMsgCurrent != null &&
                 (System.IO.Ports.SerialPort)sender == masterComm.uart)
                 Delay(10);
-            byte[] RxBuf = 串口接收数据(sender, ref length);
-            if (RxBuf == null)
+            byte[] RxBuf = new byte[1] ;
+            int length = 串口接收数据(sender, ref RxBuf);
+            if (length == 0)
                 return;
-            数据接收_显示_解析_输出日志(sender, "uart", RxBuf, length);
+            数据接收_显示_解析_输出日志(sender, "uart", ref RxBuf, length);
         }
 
         private void checkBox_TimSend_CheckedChanged(object sender, EventArgs e)
@@ -558,6 +558,7 @@ namespace 串口助手
                 {
                     int tx_cnt = 0;
                     string data = "";
+                    string lineStr = "";
                     gCfg.IniWrite("TxListSimple",
                             "按钮个数",
                             txListSimple_List.Count.ToString(),
@@ -567,10 +568,12 @@ namespace 串口助手
                         data = t.DataType.ToString() + '$' + t.MsgName + '$';
                         if (t.Msg != null && t.Msg.Length > 0)
                         {
-                            data += t.Msg[0];
+                            lineStr = t.Msg[0].Replace("$", "\\\\&");
+                            data += lineStr;
                             for (int lines = 1; lines < t.Msg.Length; lines++)
                             {
-                                data += "\\n" + t.Msg[lines];
+                                lineStr = t.Msg[lines].Replace("$", "\\\\&");
+                                data += "\\n" + lineStr;
                             }
                         }
                         gCfg.IniWrite("TxListSimple",
@@ -679,6 +682,7 @@ namespace 串口助手
                     string[] str = data.Split('$');
                     txListSimple.DataType = Convert.ToInt32(str[0]);
                     txListSimple.MsgName = str[1];
+                    str[2] = str[2].Replace("\\\\&", "$");
                     string[] msg_data = str[2].Split(new string[] { "\\n" }, StringSplitOptions.RemoveEmptyEntries);
                     txListSimple.Msg = msg_data;
                     txListSimple_List.Add(txListSimple);
@@ -1182,6 +1186,12 @@ namespace 串口助手
         {
             if (masterComm.type != "")
             {
+                if (toolStripButton_RecClear.Enabled == false)
+                {
+                    toolStripButton_RecClear.Enabled = true;
+                    toolStripButton_RecClear.BackColor = Color.Gold;
+                }
+
                 string temp = "ASCII";
                 string pattern = @"[^0-9]+";
                 Regex rgx = new Regex(pattern);
@@ -1195,11 +1205,6 @@ namespace 串口助手
                 else
                 {
                     CommMultipleMsgSend(txmsg, 0, temp);
-                }
-                if (toolStripButton_RecClear.Enabled == false)
-                {
-                    toolStripButton_RecClear.Enabled = true;
-                    toolStripButton_RecClear.BackColor = Color.Gold;
                 }
             }
         }

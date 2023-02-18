@@ -78,7 +78,7 @@ namespace 串口助手
         {
             while (true)
             {
-                if (Series1.Points.Count > 400)
+                if (Series1.Points.Count > 200)
                     Series1.Points.RemoveAt(0);
                 try
                 {
