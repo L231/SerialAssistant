@@ -9,6 +9,7 @@
 * 窗体**可置顶**，可调透明度  
 * 接收区可编辑，隐藏类似命令提示符的功能  
 
+*网盘下载地址：https://pan.baidu.com/s/1uoS-Xpm8JSPdkq5KYSMFFA?pwd=g1di*
 ---
 
 # 主界面
