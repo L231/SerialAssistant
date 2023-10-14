@@ -7,7 +7,7 @@
     <ProjectGuid>{448AEF62-D3A8-4CD4-9F10-1B326548DC33}</ProjectGuid>
     <OutputType>WinExe</OutputType>
     <RootNamespace>串口助手</RootNamespace>
-    <AssemblyName>串口助手</AssemblyName>
+    <AssemblyName>串口助手V2.1</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
@@ -91,6 +91,7 @@
     <Reference Include="WindowsFormsIntegration" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AutoTx.cs" />
     <Compile Include="BootLoader.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -191,6 +192,7 @@
     <None Include="image\hex.png" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="图标.ico" />
     <None Include="image\保存.png" />
     <None Include="image\多级发送.png" />
     <None Include="image\help.png" />
@@ -200,7 +202,6 @@
     <None Include="image\MSB.png" />
     <Content Include="image\删除.png" />
     <Content Include="image\新建.png" />
-    <Content Include="图标.ico" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

@@ -73,6 +73,7 @@ namespace 串口助手
             // Channel_Name
             // 
             this.Channel_Name.CharacterCasing = System.Windows.Forms.CharacterCasing.Upper;
+            this.Channel_Name.Font = new System.Drawing.Font("Microsoft YaHei UI", 9F);
             this.Channel_Name.Name = "Channel_Name";
             this.Channel_Name.Size = new System.Drawing.Size(50, 28);
             this.Channel_Name.ToolTipText = "通道名字，通信时用来片选";
@@ -102,6 +103,7 @@ namespace 串口助手
             // 
             // Channel_TCPPort
             // 
+            this.Channel_TCPPort.Font = new System.Drawing.Font("Microsoft YaHei UI", 9F);
             this.Channel_TCPPort.Name = "Channel_TCPPort";
             this.Channel_TCPPort.Size = new System.Drawing.Size(35, 28);
             this.Channel_TCPPort.ToolTipText = "TCP端口号";
@@ -141,9 +143,11 @@ namespace 串口助手
             "0A",
             "0A0D",
             "0D",
-            "0D0A"});
+            "0D0A",
+            "CS",
+            "ModBus"});
             this.Channel_MsgEnd.Name = "Channel_MsgEnd";
-            this.Channel_MsgEnd.Size = new System.Drawing.Size(55, 25);
+            this.Channel_MsgEnd.Size = new System.Drawing.Size(75, 25);
             this.Channel_MsgEnd.Text = "0A";
             this.Channel_MsgEnd.ToolTipText = "报文的结束符";
             // 

@@ -154,9 +154,9 @@ namespace 串口助手
                     //显示接收的数据
                     WriteRxMsg(MsgHead + str);
                     commLog.LogWriteMsg(LogMsgHead + str);
+                    realTimeCurve.RT_Curve_WriteData(rxData, tempLength);
                     if (tmepType != "ASCII")
                     {
-                        realTimeCurve.RT_Curve_WriteData(rxData, tempLength);
                         MsgLookup_16To10(rxData, tempLength, MsgHead);
                     }
                     if (SuperMsgCurrent != null && tmepName == "S0")
@@ -180,6 +180,17 @@ namespace 串口助手
                     toolStripButton_RecClear.Enabled = true;
                     toolStripButton_RecClear.BackColor = Color.Gold;
                 }
+
+                //匹配下位机的应答，自动下发指令
+                if(tmepName == "S0")
+                {
+                    byte[] tx = AutoTx.GetTxMsg(rxData, rxDataLength);
+                    if (tx != null)
+                    {
+                        TxMsg(tx);
+                    }
+                }
+                
                 //threadRxDataHandle_Supend.Reset();
                 //threadRxDataHandle_Supend.WaitOne();
             }

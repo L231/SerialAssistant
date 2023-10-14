@@ -15,6 +15,7 @@ namespace 串口助手
         List<Button> buttonListSimple = new List<Button>();
         int buttonListSimpleNumber = 0;  //参数列表与按钮列表的下标刚好反向
 
+        bool tabPage_TxListSimple_Flag = false;
         private int splitContainer_TxListSimple_size = -1;
 
 
@@ -193,27 +194,30 @@ namespace 串口助手
         {
             try
             {
-                if(splitContainer_TxListSimple_size < 0)
+                
+                if (splitContainer_TxListSimple_size < 0)
                 {
                     splitContainer_TxListSimple_size = splitContainer1.SplitterDistance;
                 }
-                if (tabControl_TxList.SelectedTab == tabPage_TxList)
-                {
-                    if (splitContainer_TxListSimple.Panel1Collapsed)
-                    {
-                        //精简发送列表的配置框处于关闭状态，此时要恢复主接收区的大小
-                        splitContainer_Master.SplitterDistance -= splitContainer_TxListSimple_size;
-                    }
-                    toolStripButton_TableTx.Enabled = true;
-                }
-                else
+                if (tabControl_TxList.SelectedTab == tabPage_TxListSimple)
                 {
                     if (splitContainer_TxListSimple.Panel1Collapsed)
                     {
                         //精简发送列表的配置框处于关闭状态，此时要恢复主接收区的大小
                         splitContainer_Master.SplitterDistance += splitContainer_TxListSimple_size;
                     }
+                    tabPage_TxListSimple_Flag = true;
                     toolStripButton_TableTx.Enabled = false;
+                }
+                else
+                {
+                    if (splitContainer_TxListSimple.Panel1Collapsed && tabPage_TxListSimple_Flag)
+                    {
+                        //精简发送列表的配置框处于关闭状态，此时要恢复主接收区的大小
+                        splitContainer_Master.SplitterDistance -= splitContainer_TxListSimple_size;
+                    }
+                    tabPage_TxListSimple_Flag = false;
+                    toolStripButton_TableTx.Enabled = true;
                 }
             }
             catch { }

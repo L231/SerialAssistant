@@ -126,7 +126,7 @@ namespace IniFile
                 TextboxTimer[i].Name = "1225";
                 TextboxTimer[i].Dock = DockStyle.Fill;
                 TextboxTimer[i].AutoSize = true;
-                //TextboxTimer[i].Multiline = true;
+                TextboxTimer[i].Multiline = true;
                 TextboxTimer[i].MaxLength = 5;
                 TextboxTimer[i].TabIndex = 200 + i;
 

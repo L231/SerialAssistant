@@ -18,9 +18,7 @@ namespace 串口助手
             public string name;
             public string type;
             public string hex;
-            public bool flagMsgTail;
-            public bool flagCheck;
-            public byte[] msgtail;
+            public string MsgTailType;
             public SerialPort uart;
             public Socket tcp;
             public Thread threadTcp;
@@ -56,23 +54,7 @@ namespace 串口助手
                         }
                     }
                     //处理报尾
-                    multi.flagCheck = false;
-                    switch (msgtail)
-                    {
-                        case "无":
-                            multi.flagMsgTail = false;
-                            break;
-                        case "CS":
-                            multi.flagMsgTail = true;
-                            multi.flagCheck = true;
-                            break;
-                        default:
-                            multi.flagMsgTail = true;
-                            DataTypeConversion dataType = new DataTypeConversion();
-                            multi.msgtail = dataType.StringToByte("HEX", msgtail);
-                            break;
-                    }
-
+                    multi.MsgTailType = msgtail;
                     multi.name = name;
                     multi.hex = hex;
                     if (com == "TCP Client")

@@ -38,7 +38,7 @@ namespace 串口助手
         public SuperMsg SuperMsgCurrent = null;
         List<object> SuperMsgList = new List<object>();
         RealTimeCurve realTimeCurve = new RealTimeCurve();
-
+        AutoTx AutoTx = new AutoTx();
 
         private void Timer_RxAutoNewline_OutHandle(object sender, EventArgs e)
         {
@@ -166,6 +166,30 @@ namespace 串口助手
             combo.Items.Add("TCP Client");
         }
 
+        private void TxMsg(byte[] data)
+        {
+            //接收区显示发送内容
+            string show = "";
+            DataTypeConversion Conversion = new DataTypeConversion();
+            Conversion.ByteAddMsgTail(MasterMsgEnd.Text, ref data);
+            if (gTxShowFlag && gBootloaderFlag == false)
+            {
+                show += DateTime.Now.ToString("HH:mm:ss.fff") + ">>";
+                show += Conversion.ByteToString(toolStripButton_TxHEX.Text, data, data.Length);
+                commLog.LogWriteMsg(show);
+                SendMsgEcho(System.Environment.NewLine + show);
+            }
+
+            if (masterComm.type == "TCP Client")
+                masterComm.tcp.Send(data, 0, data.Length, SocketFlags.None);
+            else
+            {
+                masterComm.uart.Write(data, 0, data.Length);
+            }
+
+            gTxNum += data.Length;
+            Label_Status.Text = "OPEN    TX:" + gTxNum + "    RX:" + gRxNum;
+        }
         /// <summary>
         /// 直接发送报文，无解析动作
         /// </summary>
@@ -182,18 +206,9 @@ namespace 串口助手
                 byte[] TxBuf = dataType.StringToByte(data_type, data);
                 if (TxBuf == null)
                     return false;
-                if(dev.flagCheck)
-                {
-                    dev.msgtail = new byte[1];
-                    dev.msgtail[0] = dataType.GetByteCheckSum(TxBuf, TxBuf.Length);
-                }
-                if (dev.flagMsgTail)
-                {
-                    int TxBufLen = TxBuf.Length;
-                    Array.Resize<byte>(ref TxBuf, TxBufLen + dev.msgtail.Length);
-                    Array.Copy(dev.msgtail, 0, TxBuf, TxBufLen, dev.msgtail.Length);
-                }
-                length = TxBuf.Length;
+
+                /* 处理报尾 */
+                length = dataType.ByteAddMsgTail(dev.MsgTailType, ref TxBuf);
                 //接收区显示发送内容
                 string show = "";
                 if (gTxShowFlag && gBootloaderFlag == false)
@@ -201,8 +216,7 @@ namespace 串口助手
                     if (dev.name != "S0")
                         show = "[" + dev.name + "]";
                     show += DateTime.Now.ToString("HH:mm:ss.fff") + ">>";
-                    DataTypeConversion Conversion = new DataTypeConversion();
-                    show += Conversion.ByteToString(data_type, TxBuf, length);
+                    show += dataType.ByteToString(data_type, TxBuf, length);
                     commLog.LogWriteMsg(show);
                     SendMsgEcho(System.Environment.NewLine + show);
                 }
@@ -234,8 +248,7 @@ namespace 串口助手
         {
             if (toolStripButton_Master.Text == "开启")
                 return;
-            //处理报尾
-            MasterCommMsgTailHandle();
+            masterComm.MsgTailType = MasterMsgEnd.Text;
             CommSendData(masterComm, data, "HEX");
             textBox_SuperMsgRxShow.AppendText("     " + msgFunc);
         }
@@ -245,7 +258,6 @@ namespace 串口助手
                 return;
             try
             {
-                MultiCommunication_t Dev = new MultiCommunication_t();
                 string txBuf = "";
                 //拆分当前报文，可能有多个设备的报文
                 string[] msgAll = data.Split(new string[] { "$$" }, StringSplitOptions.RemoveEmptyEntries);
@@ -260,65 +272,28 @@ namespace 串口助手
                     if (devData.Length == 1 ||
                         (devData.Length == 2 && devData[0].ToUpper() == "S0"))
                     {
-                        Dev.type = masterComm.type;
-                        Dev.name = masterComm.name;
-                        Dev.tcp = masterComm.tcp;
-                        Dev.uart = masterComm.uart;
-                        //处理报尾
-                        MasterCommMsgTailHandle();
-                        Dev.flagCheck = masterComm.flagCheck;
-                        Dev.flagMsgTail = masterComm.flagMsgTail;
-                        Dev.msgtail = masterComm.msgtail;
+                        masterComm.MsgTailType = MasterMsgEnd.Text;
+                        CommSendData(masterComm, txBuf, data_type);
                     }
                     else
                     {
-                        bool devErrFlag = true;
                         devData[0] = devData[0].ToUpper();
                         foreach (MultiCommunication_t p in listMultiComm)
                         {
                             if (p.name == devData[0])
                             {
-                                devErrFlag = false;
-                                Dev.type = p.type;
-                                Dev.name = p.name;
-                                Dev.tcp = p.tcp;
-                                Dev.uart = p.uart;
-                                Dev.flagMsgTail = p.flagMsgTail;
-                                Dev.msgtail = p.msgtail;
-                                data_type = p.hex;
+                                CommSendData(p, txBuf, p.hex);
                                 break;
                             }
                         }
-                        if (devErrFlag)
-                            continue;
                     }
-                    CommSendData(Dev, txBuf, data_type);
                 }
             }
             catch { }
         }
 
-        private bool MasterCommMsgTailHandle()
-        {
-            //处理报尾
-            switch (MasterMsgEnd.Text)
-            {
-                case "无":
-                    masterComm.flagMsgTail = false;
-                    break;
-                case "CS":
-                    masterComm.flagMsgTail = true;
-                    masterComm.flagCheck = true;
-                    break;
-                default:
-                    masterComm.flagMsgTail = true;
-                    masterComm.flagCheck = false;
-                    DataTypeConversion dataType = new DataTypeConversion();
-                    masterComm.msgtail = dataType.StringToByte("HEX", MasterMsgEnd.Text);
-                    break;
-            }
-            return true;
-        }
+        
+
         private int 串口接收数据(object sender, ref byte[] data)
         {
             try
@@ -328,7 +303,7 @@ namespace 串口助手
                 while (length != uart.BytesToRead)
                 {
                     length = uart.BytesToRead;
-                    Delay(1);
+                    Delay(3);
                     if (length >= 1024)  //强制分包
                         break;
                 }
@@ -347,8 +322,7 @@ namespace 串口助手
             {
                 if (TextBox_Tx.Text == "")
                     return;
-                //处理报尾
-                MasterCommMsgTailHandle();
+                masterComm.MsgTailType = MasterMsgEnd.Text;
                 CommSendData(masterComm, TextBox_Tx.Text, toolStripButton_TxHEX.Text);
             }
             catch { }
@@ -381,8 +355,6 @@ namespace 串口助手
                         masterComm.name = p.name;
                         masterComm.tcp = p.tcp;
                         masterComm.uart = p.uart;
-                        masterComm.flagMsgTail = p.flagMsgTail;
-                        masterComm.msgtail = p.msgtail;
                         break;
                     }
                 }
@@ -544,6 +516,25 @@ namespace 串口助手
             gCfg.SysCfgFileWrite("发送区", "MasterTx", TextBox_Tx.Text);
             gCfg.SysCfgFileWrite("接收区", "RxShowTextSize", richTextBox_Rx.Font.Size.ToString());
 
+            /* 保存多通道的信息 */
+            int cnt = 0;
+            if (listMultiComm.Count > 0)
+            {
+                foreach (MultiCommunication_t p in listMultiComm)
+                {
+                    if (p.name == "S0")
+                        continue;
+                    gCfg.SysCfgFileWrite("多通道配置区", "设备" + cnt.ToString(), p.saveInfo);
+                    cnt++;
+                }
+                gCfg.SysCfgFileWrite("多通道配置区", "最大设备数", cnt.ToString());
+            }
+
+            if("" == gCfg.TxListPath)
+            {
+                MessageBox.Show("请在[设置]中'新建'或'加载'发送列表!", "注意");
+                return;
+            }
             /* 保存发送列表 */
             gCfg.SysCfgFileWrite("发送列表", "path", gCfg.TxListPath);
             if (toolStripTextBox_TxListNum.Text == "")
@@ -585,20 +576,12 @@ namespace 串口助手
                 }
             }
             catch { }
-
-            /* 保存多通道的信息 */
-            int cnt = 0;
-            if(listMultiComm.Count > 0)
-            {
-                foreach (MultiCommunication_t p in listMultiComm)
-                {
-                    if (p.name == "S0")
-                        continue;
-                    gCfg.SysCfgFileWrite("多通道配置区", "设备" + cnt.ToString(), p.saveInfo);
-                    cnt++;
-                }
-                gCfg.SysCfgFileWrite("多通道配置区", "最大设备数", cnt.ToString());
-            }
+            /* 保存自动下发的数据 */
+            string AutoTxData = textBox_AutoTx.Text.Replace("\r\n", "\\n");
+            gCfg.IniWrite("自动下发指令",
+                            "规则",
+                            AutoTxData,
+                            gCfg.TxListPath);
 
             /* 保存超级报文 */
             cnt = 0;
@@ -664,6 +647,17 @@ namespace 串口助手
             }
             catch { }
         }
+
+        private void 加载自动下发指令的规则()
+        {
+            try
+            {
+                string data = gCfg.IniRead("自动下发指令", "规则", gCfg.TxListPath);
+                textBox_AutoTx.Text = data.Replace("\\n", "\r\n");
+                toolStripButton_AutoTx_Update_Click(null, null);
+            }
+            catch { }
+        }
         private void 加载简单的发送列表()
         {
             //先清除所有
@@ -704,9 +698,9 @@ namespace 串口助手
             {
                 TxListSimpleCreate(0);
             }
-            //当前未打开精简发送列表，则折叠Panel1
-            if (tabControl_TxList.SelectedTab == tabPage_TxList)
-                splitContainer_TxListSimple.Panel1Collapsed = true;
+            ////当前未打开精简发送列表，则折叠Panel1
+            //if (tabControl_TxList.SelectedTab == tabPage_TxList)
+            //    splitContainer_TxListSimple.Panel1Collapsed = true;
         }
         private void 加载设定()
         {
@@ -720,9 +714,9 @@ namespace 串口助手
                     toolStripTextBox_TCPPort.Text = gCfg.SysCfgFileRead("基本配置", "TCP端口");
                     string[] size = gCfg.SysCfgFileRead("基本配置", "Form1Size").Split(',');
                     this.Size = new Size(Convert.ToInt32(size[0]), Convert.ToInt32(size[1]));
+                    splitContainer_Master.Panel2Collapsed = Convert.ToBoolean(gCfg.SysCfgFileRead("基本配置", "TableTx显隐"));
                     splitContainer_Master.SplitterDistance = Convert.ToInt32(gCfg.SysCfgFileRead("基本配置", "MasterSize"));
                     splitContainer1.SplitterDistance = Convert.ToInt32(gCfg.SysCfgFileRead("基本配置", "TableTxSize"));
-                    splitContainer_Master.Panel2Collapsed = Convert.ToBoolean(gCfg.SysCfgFileRead("基本配置", "TableTx显隐"));
 
                     val = gCfg.SysCfgFileRead("基本配置", "ButtonTxHEX").Split(',');
                     toolStripButton_TxHEX.Text = val[0];
@@ -755,8 +749,11 @@ namespace 串口助手
 
                     //加载发送列表
                     string path = gCfg.SysCfgFileRead("发送列表", "path");
-                    gCfg.TxListPath = path;
-                    gCfg.TxListNum = gCfg.TxList_GetNum(path);
+                    if("" != path)
+                    {
+                        gCfg.TxListPath = path;
+                        gCfg.TxListNum = gCfg.TxList_GetNum(path);
+                    }
                     toolStripTextBox_TxListNum.Text = gCfg.TxListNum.ToString();
                     
                     加载超级报文();
@@ -765,6 +762,8 @@ namespace 串口助手
             }
             //加载精简发送列表
             加载简单的发送列表();
+
+            加载自动下发指令的规则();
         }
 
         private void richTextBox_Rx_LinkClicked(object sender, LinkClickedEventArgs e)
@@ -870,7 +869,7 @@ namespace 串口助手
         {
             richTextBox_Rx.Text = "";
             richTextBox_HexShow.Text = "";
-            HelpShow(Color.Gold, "串口助手V1.0：");
+            HelpShow(Color.Gold, "串口助手V2.1：");
             HelpShow(Color.Lime, "GitHub：https://github.com/L231");
             HelpShow(Color.Lime, "下载链接 https://pan.baidu.com/s/1uoS-Xpm8JSPdkq5KYSMFFA 提取码:g1di");
             HelpShowNewLine();
@@ -1109,7 +1108,7 @@ namespace 串口助手
             stopwatch.Start();
             while (stopwatch.Elapsed.TotalMilliseconds < tick)
             {
-                //Thread.Sleep(1);
+                Thread.Sleep(1);
             }
             stopwatch.Stop();
         }
@@ -1395,6 +1394,7 @@ namespace 串口助手
             加载简单的发送列表();
             
             加载超级报文();
+            加载自动下发指令的规则();
         }
 
         private void 另存为ToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1534,16 +1534,16 @@ namespace 串口助手
             SuperMsgList.Remove(obj);
         }
 
-        List<int> splineList = new List<int>();
-        Random random = new Random();
-        private void timer1_Tick(object sender, EventArgs e)
-        {
-            //realTimeCurve.RT_Curve_WriteData(0, random.Next(0, 199));
-        }
 
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
             System.Environment.Exit(0);
+        }
+
+        private void toolStripButton_AutoTx_Update_Click(object sender, EventArgs e)
+        {
+            if (textBox_AutoTx.Text != null)
+                AutoTx.CmdUpdate(textBox_AutoTx.Lines, toolStripButton_TxHEX.Text, MasterMsgEnd.Text);
         }
     }
 }

@@ -52,6 +52,60 @@ namespace 串口助手
             }
             return (byte)(~cs);
         }
+
+        public UInt16 GetModBusCRC16(byte[] data, int length)
+        {
+            int temp;
+            UInt16 pos, bit;
+            UInt16 crc = 0xFFFF;
+            for(pos = 0; pos < length; pos++)
+            {
+                crc = (UInt16)(data[pos] ^ crc);
+                for(bit = 0; bit < 8; bit++)
+                {
+                    temp = crc & 0x1;
+                    crc >>= 1;
+                    if (temp == 1)
+                        crc ^= 0xA001;
+                }
+            }
+            return crc;
+        }
+
+
+
+        public int ByteAddMsgTail(string MsgTailType, ref byte[] msg)
+        {
+            byte[] check;
+            switch (MsgTailType)
+            {
+                case "无":
+                    check = null;
+                    break;
+                case "CS":
+                    check = new byte[1];
+                    check[0] = GetByteCheckSum(msg, msg.Length);
+                    break;
+                case "ModBus":
+                    UInt16 crc;
+                    crc = GetModBusCRC16(msg, msg.Length);
+                    check = new byte[2];
+                    check[0] = (byte)(crc);
+                    check[1] = (byte)(crc >> 8);
+                    break;
+                default:
+                    check = StringToByte("HEX", MsgTailType);
+                    break;
+            }
+            if (check != null)
+            {
+                int TxBufLen = msg.Length;
+                Array.Resize<byte>(ref msg, TxBufLen + check.Length);
+                Array.Copy(check, 0, msg, TxBufLen, check.Length);
+            }
+            return msg.Length;
+        }
+
         /// <summary>
         /// 字符串转字节数组
         /// </summary>

@@ -95,6 +95,11 @@ namespace 串口助手
             this.buttonTxListInsert = new System.Windows.Forms.Button();
             this.buttonTxListNew = new System.Windows.Forms.Button();
             this.buttonTxListDel = new System.Windows.Forms.Button();
+            this.tabPage_AutoTx = new System.Windows.Forms.TabPage();
+            this.textBox_AutoTx = new System.Windows.Forms.TextBox();
+            this.toolStrip4 = new System.Windows.Forms.ToolStrip();
+            this.toolStripLabel4 = new System.Windows.Forms.ToolStripLabel();
+            this.toolStripButton_AutoTx_Update = new System.Windows.Forms.ToolStripButton();
             this.toolStrip_TableTX = new System.Windows.Forms.ToolStrip();
             this.toolStripButton_TableTx = new System.Windows.Forms.ToolStripButton();
             this.toolStripLabel_TableTx = new System.Windows.Forms.ToolStripLabel();
@@ -106,6 +111,7 @@ namespace 串口助手
             this.flowLayoutPanel_SuperMsg = new System.Windows.Forms.FlowLayoutPanel();
             this.toolStrip3 = new System.Windows.Forms.ToolStrip();
             this.toolStripButton2 = new System.Windows.Forms.ToolStripButton();
+            this.tabPage5 = new System.Windows.Forms.TabPage();
             this.tabPage2 = new System.Windows.Forms.TabPage();
             this.panel2 = new System.Windows.Forms.Panel();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
@@ -133,12 +139,10 @@ namespace 串口助手
             this.flowLayoutPanel_Channel = new System.Windows.Forms.FlowLayoutPanel();
             this.ChannelList_toolStrip0 = new System.Windows.Forms.ToolStrip();
             this.toolStripButton4 = new System.Windows.Forms.ToolStripButton();
-            this.tabPage5 = new System.Windows.Forms.TabPage();
             this.openFileDialog_Download = new System.Windows.Forms.OpenFileDialog();
             this.saveFileDialog_Firmware = new System.Windows.Forms.SaveFileDialog();
             this.trackBar1 = new System.Windows.Forms.TrackBar();
             this.toolTip_TxList = new System.Windows.Forms.ToolTip(this.components);
-            this.timer1 = new System.Windows.Forms.Timer(this.components);
             this.toolStrip_LeftTop.SuspendLayout();
             this.toolStrip_Left.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer_Master)).BeginInit();
@@ -161,6 +165,8 @@ namespace 串口助手
             this.tableLayoutPanel3.SuspendLayout();
             this.tableLayoutPanel4.SuspendLayout();
             this.tableLayoutPanel5.SuspendLayout();
+            this.tabPage_AutoTx.SuspendLayout();
+            this.toolStrip4.SuspendLayout();
             this.toolStrip_TableTX.SuspendLayout();
             this.tabControl1.SuspendLayout();
             this.tabPage1.SuspendLayout();
@@ -248,6 +254,7 @@ namespace 串口助手
             // 
             // toolStripTextBox_TCPPort
             // 
+            this.toolStripTextBox_TCPPort.Font = new System.Drawing.Font("Microsoft YaHei UI", 9F);
             this.toolStripTextBox_TCPPort.Name = "toolStripTextBox_TCPPort";
             this.toolStripTextBox_TCPPort.Size = new System.Drawing.Size(35, 28);
             this.toolStripTextBox_TCPPort.ToolTipText = "TCP端口号";
@@ -324,9 +331,11 @@ namespace 串口助手
             // toolStripTextBox自动换行定时器周期
             // 
             this.toolStripTextBox自动换行定时器周期.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.toolStripTextBox自动换行定时器周期.Font = new System.Drawing.Font("Microsoft YaHei UI", 9F);
             this.toolStripTextBox自动换行定时器周期.MaxLength = 3;
             this.toolStripTextBox自动换行定时器周期.Name = "toolStripTextBox自动换行定时器周期";
             this.toolStripTextBox自动换行定时器周期.Size = new System.Drawing.Size(50, 23);
+            this.toolStripTextBox自动换行定时器周期.Text = "5";
             this.toolStripTextBox自动换行定时器周期.ToolTipText = "收到数据后，自动换行的时间";
             // 
             // toolStripSeparator6
@@ -360,6 +369,7 @@ namespace 串口助手
             // toolStripTextBox_TxListNum
             // 
             this.toolStripTextBox_TxListNum.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.toolStripTextBox_TxListNum.Font = new System.Drawing.Font("Microsoft YaHei UI", 9F);
             this.toolStripTextBox_TxListNum.MaxLength = 3;
             this.toolStripTextBox_TxListNum.Name = "toolStripTextBox_TxListNum";
             this.toolStripTextBox_TxListNum.Size = new System.Drawing.Size(50, 23);
@@ -376,15 +386,18 @@ namespace 串口助手
             this.MasterMsgEnd.DropDownWidth = 50;
             this.MasterMsgEnd.Items.AddRange(new object[] {
             "无",
-            "CS",
             "0A",
             "0A0D",
             "0D",
-            "0D0A"});
+            "0D0A",
+            "CS",
+            "ModBus"});
             this.MasterMsgEnd.Name = "MasterMsgEnd";
-            this.MasterMsgEnd.Size = new System.Drawing.Size(55, 25);
+            this.MasterMsgEnd.Size = new System.Drawing.Size(75, 25);
             this.MasterMsgEnd.Text = "无";
-            this.MasterMsgEnd.ToolTipText = "主设备的报尾";
+            this.MasterMsgEnd.ToolTipText = "主设备发送时的报尾";
+            this.MasterMsgEnd.TextUpdate += new System.EventHandler(this.toolStripButton_AutoTx_Update_Click);
+            this.MasterMsgEnd.TextChanged += new System.EventHandler(this.toolStripButton_AutoTx_Update_Click);
             // 
             // toolStripComboBox_Convert
             // 
@@ -618,7 +631,7 @@ namespace 串口助手
             this.TextBox_Tx.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(64)))), ((int)(((byte)(0)))), ((int)(((byte)(0)))));
             this.TextBox_Tx.Location = new System.Drawing.Point(3, 344);
             this.TextBox_Tx.Margin = new System.Windows.Forms.Padding(3, 0, 3, 3);
-            this.TextBox_Tx.MaxLength = 2147483647;
+            this.TextBox_Tx.MaxLength = 10485760;
             this.TextBox_Tx.Multiline = true;
             this.TextBox_Tx.Name = "TextBox_Tx";
             this.TextBox_Tx.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
@@ -691,6 +704,7 @@ namespace 串口助手
             this.richTextBox_Rx.ForeColor = System.Drawing.Color.White;
             this.richTextBox_Rx.Location = new System.Drawing.Point(3, 3);
             this.richTextBox_Rx.Margin = new System.Windows.Forms.Padding(3, 3, 3, 1);
+            this.richTextBox_Rx.MaxLength = 10485760;
             this.richTextBox_Rx.Name = "richTextBox_Rx";
             this.richTextBox_Rx.ReadOnly = true;
             this.richTextBox_Rx.ScrollBars = System.Windows.Forms.RichTextBoxScrollBars.ForcedVertical;
@@ -706,6 +720,7 @@ namespace 串口助手
             this.tabControl_TxList.Alignment = System.Windows.Forms.TabAlignment.Bottom;
             this.tabControl_TxList.Controls.Add(this.tabPage_TxList);
             this.tabControl_TxList.Controls.Add(this.tabPage_TxListSimple);
+            this.tabControl_TxList.Controls.Add(this.tabPage_AutoTx);
             this.tabControl_TxList.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tabControl_TxList.Location = new System.Drawing.Point(0, 26);
             this.tabControl_TxList.Margin = new System.Windows.Forms.Padding(0);
@@ -753,7 +768,7 @@ namespace 串口助手
             // 
             this.splitContainer1.Panel2.Controls.Add(this.tableLayoutPanel2);
             this.splitContainer1.Size = new System.Drawing.Size(238, 1351);
-            this.splitContainer1.SplitterDistance = 97;
+            this.splitContainer1.SplitterDistance = 169;
             this.splitContainer1.SplitterIncrement = 4;
             this.splitContainer1.SplitterWidth = 8;
             this.splitContainer1.TabIndex = 0;
@@ -871,7 +886,7 @@ namespace 串口助手
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
-            this.tableLayoutPanel1.Size = new System.Drawing.Size(97, 1320);
+            this.tableLayoutPanel1.Size = new System.Drawing.Size(169, 1320);
             this.tableLayoutPanel1.TabIndex = 0;
             // 
             // tableLayoutPanel2
@@ -982,7 +997,7 @@ namespace 串口助手
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
-            this.tableLayoutPanel2.Size = new System.Drawing.Size(133, 1320);
+            this.tableLayoutPanel2.Size = new System.Drawing.Size(61, 1320);
             this.tableLayoutPanel2.TabIndex = 0;
             // 
             // tabPage_TxListSimple
@@ -1098,7 +1113,7 @@ namespace 串口助手
             this.textBoxTxListMsg.ScrollBars = System.Windows.Forms.ScrollBars.Both;
             this.textBoxTxListMsg.Size = new System.Drawing.Size(156, 329);
             this.textBoxTxListMsg.TabIndex = 4;
-            this.toolTip_TxList.SetToolTip(this.textBoxTxListMsg, "报文编辑框");
+            this.toolTip_TxList.SetToolTip(this.textBoxTxListMsg, "报文编辑框，关闭请右键右侧的发送按键");
             this.textBoxTxListMsg.WordWrap = false;
             // 
             // tableLayoutPanel5
@@ -1161,6 +1176,58 @@ namespace 串口助手
             this.buttonTxListDel.Text = "删除";
             this.buttonTxListDel.UseVisualStyleBackColor = false;
             this.buttonTxListDel.Click += new System.EventHandler(this.buttonTxListDel_Click);
+            // 
+            // tabPage_AutoTx
+            // 
+            this.tabPage_AutoTx.Controls.Add(this.textBox_AutoTx);
+            this.tabPage_AutoTx.Controls.Add(this.toolStrip4);
+            this.tabPage_AutoTx.Location = new System.Drawing.Point(4, 4);
+            this.tabPage_AutoTx.Name = "tabPage_AutoTx";
+            this.tabPage_AutoTx.Size = new System.Drawing.Size(255, 373);
+            this.tabPage_AutoTx.TabIndex = 2;
+            this.tabPage_AutoTx.Text = "自动下发";
+            this.tabPage_AutoTx.UseVisualStyleBackColor = true;
+            // 
+            // textBox_AutoTx
+            // 
+            this.textBox_AutoTx.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.textBox_AutoTx.Location = new System.Drawing.Point(0, 25);
+            this.textBox_AutoTx.Multiline = true;
+            this.textBox_AutoTx.Name = "textBox_AutoTx";
+            this.textBox_AutoTx.ScrollBars = System.Windows.Forms.ScrollBars.Both;
+            this.textBox_AutoTx.Size = new System.Drawing.Size(255, 348);
+            this.textBox_AutoTx.TabIndex = 1;
+            this.textBox_AutoTx.WordWrap = false;
+            // 
+            // toolStrip4
+            // 
+            this.toolStrip4.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.toolStripLabel4,
+            this.toolStripButton_AutoTx_Update});
+            this.toolStrip4.Location = new System.Drawing.Point(0, 0);
+            this.toolStrip4.Name = "toolStrip4";
+            this.toolStrip4.Size = new System.Drawing.Size(255, 25);
+            this.toolStrip4.TabIndex = 0;
+            this.toolStrip4.Text = "toolStrip4";
+            // 
+            // toolStripLabel4
+            // 
+            this.toolStripLabel4.Name = "toolStripLabel4";
+            this.toolStripLabel4.Size = new System.Drawing.Size(188, 22);
+            this.toolStripLabel4.Text = "匹配下位机的应答，自动下发指令";
+            this.toolStripLabel4.ToolTipText = "一行一个规则：RX数据 + $ + TX数据";
+            // 
+            // toolStripButton_AutoTx_Update
+            // 
+            this.toolStripButton_AutoTx_Update.BackColor = System.Drawing.Color.Lime;
+            this.toolStripButton_AutoTx_Update.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Text;
+            this.toolStripButton_AutoTx_Update.Image = ((System.Drawing.Image)(resources.GetObject("toolStripButton_AutoTx_Update.Image")));
+            this.toolStripButton_AutoTx_Update.ImageTransparentColor = System.Drawing.Color.Magenta;
+            this.toolStripButton_AutoTx_Update.Name = "toolStripButton_AutoTx_Update";
+            this.toolStripButton_AutoTx_Update.Size = new System.Drawing.Size(36, 22);
+            this.toolStripButton_AutoTx_Update.Text = "刷新";
+            this.toolStripButton_AutoTx_Update.ToolTipText = "刷新，规则生效";
+            this.toolStripButton_AutoTx_Update.Click += new System.EventHandler(this.toolStripButton_AutoTx_Update_Click);
             // 
             // toolStrip_TableTX
             // 
@@ -1265,6 +1332,7 @@ namespace 串口助手
             this.textBox_SuperMsgRxShow.Font = new System.Drawing.Font("Courier New", 9F, System.Drawing.FontStyle.Bold);
             this.textBox_SuperMsgRxShow.ForeColor = System.Drawing.Color.White;
             this.textBox_SuperMsgRxShow.Location = new System.Drawing.Point(0, 0);
+            this.textBox_SuperMsgRxShow.MaxLength = 1048576;
             this.textBox_SuperMsgRxShow.Multiline = true;
             this.textBox_SuperMsgRxShow.Name = "textBox_SuperMsgRxShow";
             this.textBox_SuperMsgRxShow.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
@@ -1303,6 +1371,15 @@ namespace 串口助手
             this.toolStripButton2.Text = "toolStripButton2";
             this.toolStripButton2.ToolTipText = "快速创建";
             this.toolStripButton2.Click += new System.EventHandler(this.toolStripButton2_Click);
+            // 
+            // tabPage5
+            // 
+            this.tabPage5.Location = new System.Drawing.Point(4, 22);
+            this.tabPage5.Name = "tabPage5";
+            this.tabPage5.Size = new System.Drawing.Size(756, 430);
+            this.tabPage5.TabIndex = 4;
+            this.tabPage5.Text = "动态曲线";
+            this.tabPage5.UseVisualStyleBackColor = true;
             // 
             // tabPage2
             // 
@@ -1642,15 +1719,6 @@ namespace 串口助手
             this.toolStripButton4.Text = "新建通道";
             this.toolStripButton4.Click += new System.EventHandler(this.toolStripButton4_Click);
             // 
-            // tabPage5
-            // 
-            this.tabPage5.Location = new System.Drawing.Point(4, 22);
-            this.tabPage5.Name = "tabPage5";
-            this.tabPage5.Size = new System.Drawing.Size(756, 430);
-            this.tabPage5.TabIndex = 4;
-            this.tabPage5.Text = "动态曲线";
-            this.tabPage5.UseVisualStyleBackColor = true;
-            // 
             // openFileDialog_Download
             // 
             this.openFileDialog_Download.Filter = "hex文件(*.hex)|*.hex|bin文件(*.bin)|*.bin|所有文件|*.*";
@@ -1675,12 +1743,6 @@ namespace 串口助手
             this.trackBar1.MouseLeave += new System.EventHandler(this.trackBar1_MouseLeave);
             this.trackBar1.MouseMove += new System.Windows.Forms.MouseEventHandler(this.trackBar1_MouseMove);
             // 
-            // timer1
-            // 
-            this.timer1.Enabled = true;
-            this.timer1.Interval = 50;
-            this.timer1.Tick += new System.EventHandler(this.timer1_Tick);
-            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
@@ -1693,6 +1755,7 @@ namespace 串口助手
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "Form1";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
+            this.Text = "调试助手V2.1";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.Form1_FormClosing);
             this.Load += new System.EventHandler(this.Form1_Load);
             this.toolStrip_LeftTop.ResumeLayout(false);
@@ -1724,6 +1787,10 @@ namespace 串口助手
             this.tableLayoutPanel4.ResumeLayout(false);
             this.tableLayoutPanel4.PerformLayout();
             this.tableLayoutPanel5.ResumeLayout(false);
+            this.tabPage_AutoTx.ResumeLayout(false);
+            this.tabPage_AutoTx.PerformLayout();
+            this.toolStrip4.ResumeLayout(false);
+            this.toolStrip4.PerformLayout();
             this.toolStrip_TableTX.ResumeLayout(false);
             this.toolStrip_TableTX.PerformLayout();
             this.tabControl1.ResumeLayout(false);
@@ -1862,12 +1929,16 @@ namespace 串口助手
         private System.Windows.Forms.Button buttonTxListDel;
         private System.Windows.Forms.ToolStripTextBox toolStripTextBox自动换行定时器周期;
         private System.Windows.Forms.TabPage tabPage5;
-        private System.Windows.Forms.Timer timer1;
         private System.Windows.Forms.ToolStripPanel BottomToolStripPanel;
         private System.Windows.Forms.ToolStripPanel TopToolStripPanel;
         private System.Windows.Forms.ToolStripPanel RightToolStripPanel;
         private System.Windows.Forms.ToolStripPanel LeftToolStripPanel;
         private System.Windows.Forms.ToolStripContentPanel ContentPanel;
+        private System.Windows.Forms.TabPage tabPage_AutoTx;
+        private System.Windows.Forms.ToolStrip toolStrip4;
+        private System.Windows.Forms.ToolStripLabel toolStripLabel4;
+        private System.Windows.Forms.ToolStripButton toolStripButton_AutoTx_Update;
+        private System.Windows.Forms.TextBox textBox_AutoTx;
     }
 }
 
